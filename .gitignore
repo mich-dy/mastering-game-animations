@@ -1,0 +1,8 @@
+Main
+build
+_build
+.vs
+out
+*.spv
+*.swp
+imgui.ini
