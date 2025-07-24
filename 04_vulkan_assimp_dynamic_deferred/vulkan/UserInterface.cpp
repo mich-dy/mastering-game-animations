@@ -87,7 +87,21 @@ bool UserInterface::init(VkRenderData& renderData) {
   mUiGenValues.resize(mNumUiGenValues);
   mUiDrawValues.resize(mNumUiDrawValues);
 
+  createDescriptorSets(renderData);
+
   return true;
+}
+
+void UserInterface::createDescriptorSets(VkRenderData& renderData) {
+  /* color attachment textures */
+  renderData.gBuffer.color.descriptorSet = ImGui_ImplVulkan_AddTexture(renderData.gBuffer.color.sampler, renderData.gBuffer.color.imageView, VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ);
+  renderData.gBuffer.position.descriptorSet = ImGui_ImplVulkan_AddTexture(renderData.gBuffer.position.sampler, renderData.gBuffer.position.imageView, VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ);
+  renderData.gBuffer.normal.descriptorSet = ImGui_ImplVulkan_AddTexture(renderData.gBuffer.normal.sampler, renderData.gBuffer.normal.imageView, VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ);
+}
+
+void UserInterface::updateDescriptorSets(VkRenderData& renderData) {
+  removeDescriptorSets(renderData);
+  createDescriptorSets(renderData);
 }
 
 void UserInterface::hideMouse(bool hide) {
@@ -647,6 +661,20 @@ void UserInterface::createFrame(VkRenderData &renderData, ModelAndInstanceData &
     }
   }
 
+  if (ImGui::CollapsingHeader("Debug")) {
+    int32_t imageHeight = 200;
+    int32_t imageWidth = renderData.rdHeight > 0 ? imageHeight * static_cast<float>(renderData.rdWidth) / renderData.rdHeight : 0;
+
+    ImGui::Text("Albedo");
+    ImGui::Image(static_cast<ImTextureID>(renderData.gBuffer.color.descriptorSet), ImVec2(imageWidth, imageHeight));
+
+    ImGui::Text("Position");
+    ImGui::Image(static_cast<ImTextureID>(renderData.gBuffer.position.descriptorSet), ImVec2(imageWidth, imageHeight));
+
+    ImGui::Text("Normal");
+    ImGui::Image(static_cast<ImTextureID>(renderData.gBuffer.normal.descriptorSet), ImVec2(imageWidth, imageHeight));
+  }
+
   ImGui::End();
 }
 
@@ -655,7 +683,15 @@ void UserInterface::render(VkRenderData& renderData) {
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), renderData.rdCommandBuffers[renderData.currentFrame]);
 }
 
+void UserInterface::removeDescriptorSets(VkRenderData& renderData) {
+  ImGui_ImplVulkan_RemoveTexture(renderData.gBuffer.color.descriptorSet);
+  ImGui_ImplVulkan_RemoveTexture(renderData.gBuffer.position.descriptorSet);
+  ImGui_ImplVulkan_RemoveTexture(renderData.gBuffer.normal.descriptorSet);
+}
+
 void UserInterface::cleanup(VkRenderData& renderData) {
+  removeDescriptorSets(renderData);
+
   ImGui_ImplVulkan_Shutdown();
   ImGui_ImplGlfw_Shutdown();
 

@@ -323,16 +323,12 @@ bool VkRenderer::createDescriptorLayouts() {
 
   {
     /* Composite shader */
-    std::vector<VkDescriptorSetLayoutBinding> layoutBindings{};
-
     VkDescriptorSetLayoutBinding colorBinding{};
     colorBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
     colorBinding.binding = 0;
     colorBinding.descriptorCount = 1;
     colorBinding.pImmutableSamplers = nullptr;
     colorBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-    layoutBindings.push_back(colorBinding);
 
     VkDescriptorSetLayoutBinding positionBinding{};
     positionBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
@@ -341,8 +337,6 @@ bool VkRenderer::createDescriptorLayouts() {
     positionBinding.pImmutableSamplers = nullptr;
     positionBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    layoutBindings.push_back(positionBinding);
-
     VkDescriptorSetLayoutBinding normalBinding{};
     normalBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
     normalBinding.binding = 2;
@@ -350,7 +344,7 @@ bool VkRenderer::createDescriptorLayouts() {
     normalBinding.pImmutableSamplers = nullptr;
     normalBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    layoutBindings.push_back(normalBinding);
+    std::vector<VkDescriptorSetLayoutBinding> layoutBindings = { colorBinding, positionBinding, normalBinding };
 
     VkDescriptorSetLayoutCreateInfo inputLayoutInfo{};
     inputLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -491,57 +485,49 @@ bool VkRenderer::updateDescriptorSets() {
 }
 
 bool VkRenderer::updateGBufferDescriptorSets() {
-  {
-    /* composite */
-    VkDescriptorImageInfo colorInfo{};
-    colorInfo.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR;
-    colorInfo.imageView = gBuffer.color.imageView;
-    colorInfo.sampler = VK_NULL_HANDLE;
+  /* composite */
+  VkDescriptorImageInfo colorInfo{};
+  colorInfo.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR;
+  colorInfo.imageView = mRenderData.gBuffer.color.imageView;
+  colorInfo.sampler = VK_NULL_HANDLE;
 
-    VkDescriptorImageInfo positionInfo{};
-    positionInfo.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR;
-    positionInfo.imageView = gBuffer.position.imageView;
-    positionInfo.sampler = VK_NULL_HANDLE;
+  VkDescriptorImageInfo positionInfo{};
+  positionInfo.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR;
+  positionInfo.imageView = mRenderData.gBuffer.position.imageView;
+  positionInfo.sampler = VK_NULL_HANDLE;
 
-    VkDescriptorImageInfo normalInfo{};
-    normalInfo.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR;
-    normalInfo.imageView = gBuffer.normal.imageView;
-    normalInfo.sampler = VK_NULL_HANDLE;
+  VkDescriptorImageInfo normalInfo{};
+  normalInfo.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR;
+  normalInfo.imageView = mRenderData.gBuffer.normal.imageView;
+  normalInfo.sampler = VK_NULL_HANDLE;
 
-    std::vector<VkWriteDescriptorSet> writeSets{};
+  VkWriteDescriptorSet colorWrite{};
+  colorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  colorWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+  colorWrite.descriptorCount = 1;
+  colorWrite.dstSet = mRenderData.rdCompositeDescriptorSet;
+  colorWrite.dstBinding = 0;
+  colorWrite.pImageInfo = &colorInfo;
 
-    VkWriteDescriptorSet colorWrite{};
-    colorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    colorWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-    colorWrite.descriptorCount = 1;
-    colorWrite.dstSet = mRenderData.rdCompositeDescriptorSet;
-    colorWrite.dstBinding = 0;
-    colorWrite.pImageInfo = &colorInfo;
+  VkWriteDescriptorSet positionWrite{};
+  positionWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  positionWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+  positionWrite.descriptorCount = 1;
+  positionWrite.dstSet = mRenderData.rdCompositeDescriptorSet;
+  positionWrite.dstBinding = 1;
+  positionWrite.pImageInfo = &positionInfo;
 
-    writeSets.push_back(colorWrite);
+  VkWriteDescriptorSet normalWrite{};
+  normalWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  normalWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+  normalWrite.descriptorCount = 1;
+  normalWrite.dstSet = mRenderData.rdCompositeDescriptorSet;
+  normalWrite.dstBinding = 2;
+  normalWrite.pImageInfo = &normalInfo;
 
-    VkWriteDescriptorSet positionWrite{};
-    positionWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    positionWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-    positionWrite.descriptorCount = 1;
-    positionWrite.dstSet = mRenderData.rdCompositeDescriptorSet;
-    positionWrite.dstBinding = 1;
-    positionWrite.pImageInfo = &positionInfo;
+  std::vector<VkWriteDescriptorSet> writeSets = { colorWrite, positionWrite, normalWrite };
 
-    writeSets.push_back(positionWrite);
-
-    VkWriteDescriptorSet normalWrite{};
-    normalWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    normalWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-    normalWrite.descriptorCount = 1;
-    normalWrite.dstSet = mRenderData.rdCompositeDescriptorSet;
-    normalWrite.dstBinding = 2;
-    normalWrite.pImageInfo = &normalInfo;
-
-    writeSets.push_back(normalWrite);
-
-    vkUpdateDescriptorSets(mRenderData.rdVkbDevice.device, static_cast<uint32_t>(writeSets.size()), writeSets.data(), 0, nullptr);
-  }
+  vkUpdateDescriptorSets(mRenderData.rdVkbDevice.device, static_cast<uint32_t>(writeSets.size()), writeSets.data(), 0, nullptr);
 
   return true;
 }
@@ -603,15 +589,18 @@ void VkRenderer::cleanupDepthBuffer() {
 bool VkRenderer::createGBuffer() {
   /* init framebuffer attachments */
   Logger::log(1, "%s: create GBuffer color attachment (RGBA, 4x 8 bit int)\n", __FUNCTION__);
-  if (!FramebufferAttachment::init(mRenderData, gBuffer.color, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)) {
+  if (!FramebufferAttachment::init(mRenderData, mRenderData.gBuffer.color, VK_FORMAT_B8G8R8A8_UNORM,
+    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)) {
     return false;
   }
   Logger::log(1, "%s: create GBuffer position attachment (4x 32 bit float)\n", __FUNCTION__);
-  if (!FramebufferAttachment::init(mRenderData, gBuffer.position, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)) {
+  if (!FramebufferAttachment::init(mRenderData, mRenderData.gBuffer.position,
+    VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)) {
     return false;
   }
   Logger::log(1, "%s: create GBuffer normal attachment (4x 32 bit float)\n", __FUNCTION__);
-  if (!FramebufferAttachment::init(mRenderData, gBuffer.normal, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)) {
+  if (!FramebufferAttachment::init(mRenderData, mRenderData.gBuffer.normal,
+    VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)) {
     return false;
   }
 
@@ -620,20 +609,20 @@ bool VkRenderer::createGBuffer() {
 }
 
 void VkRenderer::cleanupGBuffer() {
-  if (gBuffer.color.image != VK_NULL_HANDLE) {
-    FramebufferAttachment::cleanup(mRenderData, gBuffer.color);
+  if (mRenderData.gBuffer.color.image != VK_NULL_HANDLE) {
+    FramebufferAttachment::cleanup(mRenderData, mRenderData.gBuffer.color);
     Logger::log(1, "%s: deleted GBuffer color attachment\n", __FUNCTION__);
   } else {
     Logger::log(1,"%s error: GBuffer color attachment is null\n",  __FUNCTION__);
   }
-  if (gBuffer.position.image != VK_NULL_HANDLE) {
-    FramebufferAttachment::cleanup(mRenderData, gBuffer.position);
+  if (mRenderData.gBuffer.position.image != VK_NULL_HANDLE) {
+    FramebufferAttachment::cleanup(mRenderData, mRenderData.gBuffer.position);
     Logger::log(1, "%s: deleted GBuffer position attachment\n", __FUNCTION__);
   } else {
     Logger::log(1,"%s error: GBuffer position attachment is null\n",  __FUNCTION__);
   }
-  if (gBuffer.normal.image != VK_NULL_HANDLE) {
-    FramebufferAttachment::cleanup(mRenderData, gBuffer.normal);
+  if (mRenderData.gBuffer.normal.image != VK_NULL_HANDLE) {
+    FramebufferAttachment::cleanup(mRenderData, mRenderData.gBuffer.normal);
     Logger::log(1, "%s: deleted GBuffer normal attachment\n", __FUNCTION__);
   } else {
     Logger::log(1,"%s error: GBuffer normal attachment is null\n",  __FUNCTION__);
@@ -704,6 +693,8 @@ bool VkRenderer::recreateSwapchain() {
     return false;
   }
 
+  mUserInterface.updateDescriptorSets(mRenderData);
+
   return true;
 }
 
@@ -761,7 +752,12 @@ bool VkRenderer::createPipelineLayouts() {
 }
 
 bool VkRenderer::createPipelines() {
-  std::vector<VkFormat> colorAttachmentFormats { mRenderData.rdVkbSwapchain.image_format, gBuffer.color.format, gBuffer.position.format, gBuffer.normal.format };
+  std::vector<VkFormat> colorAttachmentFormats {
+   mRenderData.rdVkbSwapchain.image_format,
+   mRenderData.gBuffer.color.format,
+   mRenderData.gBuffer.position.format,
+   mRenderData.gBuffer.normal.format };
+
   std::string vertexShaderFile = "shader/assimp.vert.spv";
   std::string fragmentShaderFile = "shader/assimp.frag.spv";
   if (!SkinningPipeline::init(mRenderData, colorAttachmentFormats, mRenderData.rdAssimpPipelineLayout,
@@ -835,6 +831,7 @@ bool VkRenderer::initUserInterface() {
     Logger::log(1, "%s error: could not init ImGui\n", __FUNCTION__);
     return false;
   }
+
   return true;
 }
 
@@ -1307,7 +1304,7 @@ bool VkRenderer::draw(float deltaTime) {
 
   VkRenderingAttachmentInfo colorAttachmentInfo {};
   colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-  colorAttachmentInfo.imageView = gBuffer.color.imageView;
+  colorAttachmentInfo.imageView = mRenderData.gBuffer.color.imageView;
   colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
   colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1315,7 +1312,7 @@ bool VkRenderer::draw(float deltaTime) {
 
   VkRenderingAttachmentInfo positionAttachmentInfo {};
   positionAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-  positionAttachmentInfo.imageView = gBuffer.position.imageView;
+  positionAttachmentInfo.imageView = mRenderData.gBuffer.position.imageView;
   positionAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
   positionAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   positionAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1323,7 +1320,7 @@ bool VkRenderer::draw(float deltaTime) {
 
   VkRenderingAttachmentInfo normalAttachmentInfo {};
   normalAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-  normalAttachmentInfo.imageView = gBuffer.normal.imageView;
+  normalAttachmentInfo.imageView = mRenderData.gBuffer.normal.imageView;
   normalAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
   normalAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   normalAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1577,16 +1574,8 @@ void VkRenderer::cleanup() {
 
   vmaDestroyAllocator(mRenderData.rdAllocator);
 
-  //mRenderData.rdVkbSwapchain.destroy_image_views(mRenderData.rdSwapchainImageViews);
-  //vkb::destroy_swapchain(mRenderData.rdVkbSwapchain);
-
-  for (size_t i = 0; i < mRenderData.rdSwapchainImageViews.size(); ++i) {
-    vkDestroyImageView(mRenderData.rdVkbDevice.device, mRenderData.rdSwapchainImageViews[i], nullptr);
-  }
-  if (mRenderData.rdVkbSwapchain.swapchain != VK_NULL_HANDLE) {
-    vkDestroySwapchainKHR(mRenderData.rdVkbDevice.device, mRenderData.rdVkbSwapchain.swapchain, nullptr);
-  }
-
+  mRenderData.rdVkbSwapchain.destroy_image_views(mRenderData.rdSwapchainImageViews);
+  vkb::destroy_swapchain(mRenderData.rdVkbSwapchain);
 
   vkb::destroy_device(mRenderData.rdVkbDevice);
   vkb::destroy_surface(mRenderData.rdVkbInstance.instance, mSurface);

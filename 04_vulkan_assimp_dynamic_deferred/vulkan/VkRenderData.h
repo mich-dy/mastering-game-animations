@@ -85,6 +85,7 @@ struct VkFrameBufferData {
   VkImageView imageView = VK_NULL_HANDLE;
   VkSampler sampler = VK_NULL_HANDLE;
   VmaAllocation alloc = VK_NULL_HANDLE;
+  VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
 };
 
 struct VulkanGBuffer {
@@ -125,6 +126,8 @@ struct VkRenderData {
   float rdViewAzimuth = 330.0f;
   float rdViewElevation = -20.0f;
   glm::vec3 rdCameraWorldPosition = glm::vec3(2.0f, 5.0f, 7.0f);
+
+  VulkanGBuffer gBuffer{};
 
   /* Vulkan specific stuff */
   const int MAX_FRAMES_IN_FLIGHT = 3;

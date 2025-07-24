@@ -23,6 +23,6 @@ void main() {
 
   outPosition.rgb = position;
   outPosition.a =  linearDepth(gl_FragCoord.z);
-  outNormal = normalize(vec4(normal, 0.0));
+  outNormal = vec4(normalize(normal), 1.0);
 
 }

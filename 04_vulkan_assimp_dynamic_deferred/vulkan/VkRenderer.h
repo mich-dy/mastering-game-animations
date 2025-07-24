@@ -84,8 +84,6 @@ class VkRenderer {
     /* identity matrices */
     VkUploadMatrices mMatrices{ glm::mat4(1.0f), glm::mat4(1.0f) };
 
-    VulkanGBuffer gBuffer {};
-
     /* Vulkan specific code */
     VkSurfaceKHR mSurface = VK_NULL_HANDLE;
     VmaAllocator rdAllocator = nullptr;

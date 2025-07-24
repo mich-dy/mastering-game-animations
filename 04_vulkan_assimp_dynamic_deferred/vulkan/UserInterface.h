@@ -12,6 +12,8 @@ class UserInterface {
     void createFrame(VkRenderData& renderData, ModelAndInstanceData &modInstData);
     void render(VkRenderData& renderData);
 
+    void updateDescriptorSets(VkRenderData& renderData);
+
     void cleanup(VkRenderData& renderData);
 
   private:
@@ -52,4 +54,7 @@ class UserInterface {
     int mUiDrawOffset = 0;
 
     int mManyInstanceCreateNum = 1;
+
+    void createDescriptorSets(VkRenderData& renderData);
+    void removeDescriptorSets(VkRenderData& renderData);
 };

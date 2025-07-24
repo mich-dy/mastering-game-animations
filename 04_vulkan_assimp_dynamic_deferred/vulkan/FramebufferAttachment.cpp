@@ -29,7 +29,7 @@ bool FramebufferAttachment::init(VkRenderData& renderData, VkFrameBufferData& bu
   imageInfo.arrayLayers = 1;
   imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
   imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-  imageInfo.usage = flags; /* we need input attachment bit to read/write in shader, and samples bit*/
+  imageInfo.usage = flags; /* we need input attachment bit to read/write in shader, and samples bit to show in UI and debug windows */
   imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
   VmaAllocationCreateInfo imageAllocInfo{};
@@ -88,11 +88,36 @@ bool FramebufferAttachment::init(VkRenderData& renderData, VkFrameBufferData& bu
     return false;
   }
 
+  // Sampler for ImGui and Debug
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.magFilter = VK_FILTER_NEAREST;
+  samplerInfo.minFilter = VK_FILTER_NEAREST;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  samplerInfo.mipLodBias = 0.0f;
+  samplerInfo.minLod = 0.0f;
+  samplerInfo.maxLod = 0.0f;
+  samplerInfo.anisotropyEnable = VK_FALSE;
+  samplerInfo.maxAnisotropy = 1.0f;
+
+  if (vkCreateSampler(renderData.rdVkbDevice.device, &samplerInfo, nullptr, &bufferData.sampler) != VK_SUCCESS) {
+    Logger::log(1, "%s error: could not create sampler\n", __FUNCTION__);
+    return false;
+  }
+
   Logger::log(2, "%s: created frame buffer attachment\n", __FUNCTION__);
   return true;
 }
 
 void FramebufferAttachment::cleanup(VkRenderData& renderData, VkFrameBufferData& bufferData) {
+  vkDestroySampler(renderData.rdVkbDevice.device, bufferData.sampler, nullptr);
   vkDestroyImageView(renderData.rdVkbDevice.device, bufferData.imageView, nullptr);
   vmaDestroyImage(renderData.rdAllocator, bufferData.image, bufferData.alloc);
 }
