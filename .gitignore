@@ -6,3 +6,5 @@ out
 *.spv
 *.swp
 imgui.ini
+.kdev4
+*.kdev4
