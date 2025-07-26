@@ -256,8 +256,8 @@ class VkRenderer {
     std::shared_ptr<BoundingBox3D> mWorldBoundaries = nullptr;
 
     bool createAABBLookup(std::shared_ptr<AssimpModel> model);
-    void drawAABBs(std::vector<std::shared_ptr<AssimpInstance>> instances, glm::vec4 aabbColor);
-    void drawCollisionDebug();
+    void createAABBDebugLiness(std::vector<std::shared_ptr<AssimpInstance>> instances, glm::vec4 aabbColor);
+    void createInstanceCollisionDebug();
     bool createSelectedBoundingSpheres();
     bool createCollidingBoundingSpheres();
     bool createAllBoundingSpheres();
@@ -271,7 +271,7 @@ class VkRenderer {
     void resetCollisionData();
 
     void findInteractionInstances();
-    void drawInteractionDebug();
+    void createInteractionDebug();
 
     std::shared_ptr<GraphEditor> mGraphEditor = nullptr;
     void editGraph(std::string graphName);
