@@ -672,10 +672,7 @@ bool VkRenderer::recreateSwapchain() {
   cleanupDepthBuffer();
   cleanupGBuffer();
 
-  //mRenderData.rdVkbSwapchain.destroy_image_views(mRenderData.rdSwapchainImageViews);
-  for (size_t i = 0; i < mRenderData.rdSwapchainImageViews.size(); ++i) {
-    vkDestroyImageView(mRenderData.rdVkbDevice.device, mRenderData.rdSwapchainImageViews[i], nullptr);
-  }
+  mRenderData.rdVkbSwapchain.destroy_image_views(mRenderData.rdSwapchainImageViews);
 
   /* and recreate */
   if (!createSwapchain()) {
