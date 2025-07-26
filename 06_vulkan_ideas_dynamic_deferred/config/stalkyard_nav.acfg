@@ -1,0 +1,402 @@
+# Application viewer config file
+version: 8.0
+
+settings:
+  selected-model: 1
+  selected-instance: 4
+  selected-camera: 2
+  selected-level: 1
+  highlight-selection: false
+  collision-enabled: 1
+  interaction-enabled: true
+  interaction-min-range: 1.5
+  interaction-max-range: 10
+  interaction-fov: 45
+  gravity-enabled: true
+  level-collision-ground-slope: 43.1500015
+  level-collision-max-stairstep-height: 1.79999995
+  inverse-kinematics-enabled: true
+  inverse-kinematics-iterations: 10
+
+levels:
+  - level-name: hl_mp_stalkyard.obj
+    level-file: ../../chapter01/01_opengl_assimp/assets/hl_mp_stalkyard/hl_mp_stalkyard.obj
+    position: [0, 0, 0]
+    rotation: [0, 0, 0]
+    scale: 0.100000001
+    swap-axes: true
+
+cameras:
+  - camera-name: FreeCam
+    position: [115.961327, 25.3344517, -10.7485361]
+    view-azimuth: 332.497284
+    view-elevation: -26.2997513
+    camera-type: 0
+    camera-projection: 0
+    field-of-view: 94
+  - camera-name: OrthoCam
+    position: [-54.6742516, 24.0293789, -50.2794189]
+    view-azimuth: 73.2995911
+    view-elevation: -25.9000263
+    camera-type: 0
+    camera-projection: 1
+    ortho-scale: 50
+  - camera-name: ThirdPersonCam
+    position: [108.749023, 11.5666361, -54.2889786]
+    view-azimuth: 180.743042
+    view-elevation: -8.30008602
+    camera-type: 2
+    camera-projection: 0
+    field-of-view: 86
+    3rd-person-view-distance: 5
+    3rd-person-height-offset: 0
+  - camera-name: FollowCam
+    position: [3.76401448, 5.73458576, -5.39343214]
+    view-azimuth: 340.833191
+    view-elevation: -6.36617279
+    camera-type: 4
+    camera-projection: 0
+    field-of-view: 90
+    follow-cam-height-offset: 2
+  - camera-name: FirstPersonCam
+    position: [149.782974, -0.0801852494, 3.78474951]
+    view-azimuth: 225.700012
+    view-elevation: -6.60000229
+    camera-type: 1
+    camera-projection: 0
+    field-of-view: 88
+    1st-person-view-lock: true
+    1st-person-bone-to-follow: 5
+    1st-person-view-offsets: [0, 0.100000001, 0.449999988]
+
+models:
+  - model-name: Woman.gltf
+    model-file: assets/woman/Woman.gltf
+    is-nav-target: false
+    idle-walk-run-clips:
+      - 255:
+          idle-clip: 0
+          idle-clip-speed: 2
+          walk-clip: 9
+          walk-clip-speed: 8
+          run-clip: 6
+          run-clip-speed: 10
+    action-clips:
+      - 3:
+          clip: 2
+          clip-speed: 5
+      - 4:
+          clip: 1
+          clip-speed: 5
+      - 5:
+          clip: 5
+          clip-speed: 6
+      - 6:
+          clip: 4
+          clip-speed: 2
+    action-sequences:
+      - 0: 3
+      - 0: 5
+      - 0: 6
+      - 1: 4
+      - 2: 4
+    bounding-sphere-adjustments:
+      - [0, -0.31400001, 0, 0.600000024]
+      - [0, 0, 0, 1.70000005]
+      - [0, 0, 0, 3]
+      - [0, 0, 0, 3]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0.300000012, 0, 1.75]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [-0.0500000007, -0.00999999978, 0, 1.5]
+      - [-0.100000001, 0.200000003, 0, 1.5]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 0.00999999978]
+      - [0.0500000007, -0.00999999978, 0, 1.5]
+      - [0.100000001, 0.200000003, 0, 1.5]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, -0.200000003, 0, 4]
+      - [0, 0, 0, 1.5]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, -0.200000003, -0, 4]
+      - [0, 0, 0, 1.29999995]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+    left-foot-ik-chain:
+      - 33
+      - 32
+      - 31
+    right-foot-ik-chain:
+      - 38
+      - 37
+      - 36
+  - model-name: hevsuit.obj
+    model-file: ../../chapter01/01_opengl_assimp/assets/hevsuit/hevsuit.obj
+    is-nav-target: false
+  - model-name: traffic_cone_prop.glb
+    model-file: assets/waypointmarker/traffic_cone_prop.glb
+    is-nav-target: true
+
+node-trees:
+  - node-tree-name: AllRunCollisionWoman
+    editor-settings: "[editor]\npanning=658,307\n\n[node.0]\norigin=-566,-53\n\n[node.26]\norigin=1009,267\n\n[node.32]\norigin=1265,355\n\n[node.33]\norigin=1433,393\n\n[node.31]\norigin=1643,243\n\n[node.18]\norigin=709,-345\n\n[node.20]\norigin=723,-133\n\n[node.15]\norigin=1374,-284\n\n[node.21]\norigin=727,74\n\n[node.22]\norigin=1404,-124\n\n[node.23]\norigin=1390,30\n\n[node.27]\norigin=1785,-390\n\n[node.28]\norigin=1790,-183\n\n[node.29]\norigin=1794,34\n\n[node.30]\norigin=2075,-208\n\n[node.25]\norigin=1615,11\n\n[node.19]\norigin=1603,-315\n\n[node.12]\norigin=994,-128\n\n[node.16]\norigin=1207,-126\n\n[node.24]\norigin=1611,-131\n\n[node.13]\norigin=994,13\n\n[node.17]\norigin=1218,11\n\n[node.11]\norigin=1205,-267\n\n[node.5]\norigin=557,461\n\n[node.4]\norigin=241,662\n\n[node.3]\norigin=988,-270\n\n[node.2]\norigin=97,-89\n\n[node.1]\norigin=-126,-73\n\n[node.34]\norigin=38,-458\n\n[node.35]\norigin=311,-577\n\n[node.36]\norigin=517,-385\n\n[node.6]\norigin=-396,-49\n"
+    nodes:
+      - node-type: 1
+        node-id: 0
+      - node-type: 7
+        node-id: 1
+        node-data:
+          - instance-move-direction: 1
+          - instance-move-state: 2
+      - node-type: 8
+        node-id: 4
+        node-data:
+          - event-cooldown: 1.000000
+          - event-type: 2
+      - node-type: 7
+        node-id: 5
+        node-data:
+          - instance-max-rotation: 0.000000
+          - instance-min-rotation: 180.000000
+          - instance-random-rotation: 0
+          - instance-relative-rotation: 1
+      - node-type: 9
+        node-id: 3
+        node-data:
+          - action-move-state: 5
+      - node-type: 3
+        node-id: 11
+        node-data:
+          - wait-time: 2.500000
+      - node-type: 9
+        node-id: 12
+        node-data:
+          - action-move-state: 6
+      - node-type: 9
+        node-id: 15
+        node-data:
+          - action-move-state: 0
+      - node-type: 3
+        node-id: 16
+        node-data:
+          - wait-time: 3.000000
+      - node-type: 3
+        node-id: 17
+        node-data:
+          - wait-time: 3.000000
+      - node-type: 9
+        node-id: 13
+        node-data:
+          - action-move-state: 3
+      - node-type: 11
+        node-id: 18
+        node-data:
+          - face-anim: 1
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 1.000000
+          - face-anim-start-weight: 0.000000
+      - node-type: 11
+        node-id: 20
+        node-data:
+          - face-anim: 3
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 1.000000
+          - face-anim-start-weight: 0.000000
+      - node-type: 11
+        node-id: 21
+        node-data:
+          - face-anim: 4
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 1.000000
+          - face-anim-start-weight: 0.000000
+      - node-type: 9
+        node-id: 22
+        node-data:
+          - action-move-state: 0
+      - node-type: 9
+        node-id: 23
+        node-data:
+          - action-move-state: 0
+      - node-type: 11
+        node-id: 27
+        node-data:
+          - face-anim: 1
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 0.000000
+          - face-anim-start-weight: 1.000000
+      - node-type: 11
+        node-id: 28
+        node-data:
+          - face-anim: 3
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 0.000000
+          - face-anim-start-weight: 1.000000
+      - node-type: 11
+        node-id: 29
+        node-data:
+          - face-anim: 4
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 0.000000
+          - face-anim-start-weight: 1.000000
+      - node-type: 11
+        node-id: 30
+      - node-type: 3
+        node-id: 19
+        node-data:
+          - wait-time: 0.500000
+      - node-type: 3
+        node-id: 24
+        node-data:
+          - wait-time: 0.500000
+      - node-type: 3
+        node-id: 25
+        node-data:
+          - wait-time: 0.500000
+      - node-type: 8
+        node-id: 26
+        node-data:
+          - event-cooldown: 0.250000
+          - event-type: 4
+      - node-type: 7
+        node-id: 31
+        node-data:
+          - instance-max-rotation: -170.000000
+          - instance-min-rotation: -180.000000
+          - instance-random-rotation: 1
+          - instance-relative-rotation: 1
+      - node-type: 5
+        node-id: 32
+        node-data:
+          - selector-num-outs: 2
+          - selector-wait-time: 0.000000
+      - node-type: 7
+        node-id: 33
+        node-data:
+          - instance-max-rotation: 180.000000
+          - instance-min-rotation: 170.000000
+          - instance-random-rotation: 1
+          - instance-relative-rotation: 1
+      - node-type: 13
+        node-id: 2
+      - node-type: 8
+        node-id: 34
+        node-data:
+          - event-cooldown: 0.000000
+          - event-type: 5
+      - node-type: 7
+        node-id: 35
+        node-data:
+          - instance-move-direction: 0
+          - instance-move-state: 0
+      - node-type: 3
+        node-id: 36
+        node-data:
+          - wait-time: 3.000000
+      - node-type: 3
+        node-id: 6
+        node-data:
+          - wait-time: 5.000000
+    links:
+      - 10019: [17200, 23000]
+      - 10030: [32200, 31000]
+      - 10001: [1200, 2000]
+      - 10020: [25200, 29000]
+      - 10029: [26200, 32000]
+      - 10000: [18200, 3000]
+      - 10013: [12200, 16000]
+      - 10011: [3200, 11000]
+      - 10021: [19200, 27000]
+      - 10008: [34200, 35000]
+      - 10023: [15200, 19000]
+      - 10010: [35200, 36000]
+      - 10027: [28200, 30000]
+      - 10012: [21200, 13000]
+      - 10003: [6200, 1000]
+      - 10005: [0, 6000]
+      - 10018: [16200, 22000]
+      - 10025: [22200, 24000]
+      - 10022: [24200, 28000]
+      - 10024: [23200, 25000]
+      - 10031: [32201, 33000]
+      - 10002: [20200, 12000]
+      - 10028: [29200, 30000]
+      - 10015: [13200, 17000]
+      - 10004: [4200, 5000]
+      - 10017: [11200, 15000]
+      - 10026: [27200, 30000]
+
+instances:
+  - model-file: Woman.gltf
+    position: [111.093681, -5.69224358e-06, -19.0204506]
+    rotation: [0, -9.04431915, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 0
+    2nd-anim-clip-number: 9
+    anim-clip-speed: 2
+    anim-blend-factor: 0
+    node-tree: AllRunCollisionWoman
+    enable-navigation: false
+    path-target-instance: -1
+    target-of-cameras:
+      - ThirdPersonCam
+  - model-file: traffic_cone_prop.glb
+    position: [-32.3500328, -1.95205212e-06, -77.0662155]
+    rotation: [0, 0, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 0
+    2nd-anim-clip-number: 0
+    anim-clip-speed: 1
+    anim-blend-factor: 0
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: hevsuit.obj
+    position: [-0.670933127, -4.47034836e-08, -1.76783395]
+    rotation: [0, 0, 0]
+    scale: 0.100000001
+    swap-axes: false
+    1st-anim-clip-number: 0
+    2nd-anim-clip-number: 0
+    anim-clip-speed: 1
+    anim-blend-factor: 0
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: traffic_cone_prop.glb
+    position: [111.069527, -5.76674938e-06, -20.5165043]
+    rotation: [0, 0, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 0
+    2nd-anim-clip-number: 0
+    anim-clip-speed: 1
+    anim-blend-factor: 0
+    enable-navigation: false
+    path-target-instance: -1
