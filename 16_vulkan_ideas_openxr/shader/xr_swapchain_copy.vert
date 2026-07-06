@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) out vec2 outUV;
 

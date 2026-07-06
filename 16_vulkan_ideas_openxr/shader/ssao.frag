@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec2 inUV;
 
@@ -40,11 +40,11 @@ float unlinearizeDepth(float depth) {
 
 vec3 getWorldPosFromDepth(vec2 uv) {
   float depth = 1.0;
-  depth = unlinearizeDepth(texture(ssaoInputDepth, vec3(uv, float(gl_ViewIndex))).r);
+  depth = unlinearizeDepth(texture(ssaoInputDepth, vec3(uv, float(XR_VIEW_INDEX))).r);
 
   vec2 xy = uv * 2.0 - 1.0;
   vec4 pos = vec4(xy, depth, 1.0);
-  pos = invProjectionMat[gl_ViewIndex] * pos;
+  pos = invProjectionMat[XR_VIEW_INDEX] * pos;
   pos.xyz /= pos.w;
 
   return pos.xyz;
@@ -53,7 +53,7 @@ vec3 getWorldPosFromDepth(vec2 uv) {
 void main() {
   vec3 fragPos = getWorldPosFromDepth(inUV);
   // set w to zero to nullify translation
-  vec3 normal = (viewMat[gl_ViewIndex] * vec4(normalize(texture(ssaoInputNormal, vec3(inUV, float(gl_ViewIndex))).rgb * 2.0 - 1.0), 0.0)).xyz;
+  vec3 normal = (viewMat[XR_VIEW_INDEX] * vec4(normalize(texture(ssaoInputNormal, vec3(inUV, float(XR_VIEW_INDEX))).rgb * 2.0 - 1.0), 0.0)).xyz;
 
   ivec2 texDim = textureSize(ssaoInputDepth, 0).xy;
   ivec2 noiseDim = textureSize(ssaoNoise, 0);
@@ -72,12 +72,12 @@ void main() {
     samplePos = fragPos + samplePos * ssaoRadius;
 
     vec4 offset = vec4(samplePos, 1.0);
-    offset = projectionMat[gl_ViewIndex] * offset;
+    offset = projectionMat[XR_VIEW_INDEX] * offset;
     offset.xy /= offset.w;
     offset.xy = offset.xy * 0.5 + 0.5;
 
     float sampleDepth = getWorldPosFromDepth(offset.xy).z;
-    vec3 sampleNormal = (viewMat[gl_ViewIndex] * vec4(normalize(texture(ssaoInputNormal, vec3(offset.xy, float(gl_ViewIndex))).rgb * 2.0 - 1.0), 0.0)).xyz;
+    vec3 sampleNormal = (viewMat[XR_VIEW_INDEX] * vec4(normalize(texture(ssaoInputNormal, vec3(offset.xy, float(XR_VIEW_INDEX))).rgb * 2.0 - 1.0), 0.0)).xyz;
 
     if (dot(sampleNormal, normal) < 0.99) {
       float rangeCheck = smoothstep(0.0, 1.0, ssaoRadius / abs(fragPos.z - sampleDepth));

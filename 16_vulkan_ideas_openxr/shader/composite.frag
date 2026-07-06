@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (set = 0, binding = 2) uniform sampler2DArray inputColor;
 layout (set = 0, binding = 3) uniform sampler2DArray inputDepth;
@@ -93,11 +93,11 @@ float unlinearizeDepth(float depth) {
 
 vec3 getWorldPosFromDepth(vec2 uv) {
   float depth = 0.0;
-  depth = unlinearizeDepth(texture(inputDepth, vec3(uv, float(gl_ViewIndex))).r);
+  depth = unlinearizeDepth(texture(inputDepth, vec3(uv, float(XR_VIEW_INDEX))).r);
 
   vec2 xy = uv * 2.0 - 1.0;
   vec4 pos = vec4(xy, depth, 1.0);
-  pos = invProjectionMat[gl_ViewIndex] * pos;
+  pos = invProjectionMat[XR_VIEW_INDEX] * pos;
   pos.xyz /= pos.w;
 
   return pos.xyz;
@@ -147,13 +147,13 @@ float calculateShadowFactorPCF(vec4 shadowCoord, uint cascadeIndex) {
 void main() {
   /* Read G-Buffer values from previous sub pass */
   vec3 viewPos = getWorldPosFromDepth(inUV);
-  vec3 worldPos = vec3(invViewMat[gl_ViewIndex] * vec4(getWorldPosFromDepth(inUV), 1.0));
+  vec3 worldPos = vec3(invViewMat[XR_VIEW_INDEX] * vec4(getWorldPosFromDepth(inUV), 1.0));
   float fragDepth = viewPos.z;
-  vec3 normal = normalize(texture(inputNormal, vec3(inUV, float(gl_ViewIndex))).rgb * 2.0 - 1.0);
-  vec3 albedo = texture(inputColor, vec3(inUV, float(gl_ViewIndex))).rgb;
+  vec3 normal = normalize(texture(inputNormal, vec3(inUV, float(XR_VIEW_INDEX))).rgb * 2.0 - 1.0);
+  vec3 albedo = texture(inputColor, vec3(inUV, float(XR_VIEW_INDEX))).rgb;
 
-  float ao = texture(ssao, vec3(inUV, float(gl_ViewIndex))).r;
-  float aoBlur = texture(ssaoBlur, vec3(inUV, float(gl_ViewIndex))).r;
+  float ao = texture(ssao, vec3(inUV, float(XR_VIEW_INDEX))).r;
+  float aoBlur = texture(ssaoBlur, vec3(inUV, float(XR_VIEW_INDEX))).r;
 
   float ssaoValue = (ssaoBlurEnabled == 1) ? aoBlur : ao;
 
@@ -189,7 +189,7 @@ void main() {
         }
       }
 
-      vec3 dynamicDiffuse = texture(lightSpheres, vec3(inUV, float(gl_ViewIndex))).rgb * albedo;
+      vec3 dynamicDiffuse = texture(lightSpheres, vec3(inUV, float(XR_VIEW_INDEX))).rgb * albedo;
 
       outColor = mix(vec4(clamp(ambient + diffuse * ssaoValue * shadowFactor + dynamicDiffuse, 0.0, 1.0), 1.0), fogColor, fogAmount);
 
@@ -216,7 +216,7 @@ void main() {
       outColor = vec4(albedo, 1.0);
       break;
     case 2:
-      outColor = vec4(vec3(texture(inputDepth, vec3(inUV, float(gl_ViewIndex))).r), 1.0);
+      outColor = vec4(vec3(texture(inputDepth, vec3(inUV, float(XR_VIEW_INDEX))).r), 1.0);
       break;
     case 3:
       outColor = vec4(normal * 0.5 + 0.5, 1.0);
@@ -231,7 +231,7 @@ void main() {
       outColor = vec4(vec3(aoBlur), 1.0);
       break;
     case 7:
-      outColor = vec4(texture(lightSpheres, vec3(inUV, float(gl_ViewIndex))).rgb, 1.0);
+      outColor = vec4(texture(lightSpheres, vec3(inUV, float(XR_VIEW_INDEX))).rgb, 1.0);
       break;
     case 8:
       outColor = vec4(vec3(texture(shadowMapCombinedDepth, inUV).r), 1.0);

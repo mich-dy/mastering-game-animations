@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 // Source:
 // https://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
@@ -21,7 +21,7 @@ vec3 gridPlane[6] = vec3[] (
 );
 
 vec3 UnprojectPoint(float x, float y, float z) {
-  vec4 unprojectedPoint =  invViewMat[gl_ViewIndex] * invProjectionMat[gl_ViewIndex] * vec4(x, y, z, 1.0);
+  vec4 unprojectedPoint =  invViewMat[XR_VIEW_INDEX] * invProjectionMat[XR_VIEW_INDEX] * vec4(x, y, z, 1.0);
   return unprojectedPoint.xyz / unprojectedPoint.w;
 }
 

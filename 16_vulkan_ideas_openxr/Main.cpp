@@ -1,3 +1,5 @@
+#if !defined(__ANDROID__)
+
 #include <memory>
 #include <string>
 
@@ -21,3 +23,5 @@ int main(int argc, char *argv[]) {
   Logger::log(1, "%s: application finished\n", __FUNCTION__);
   return 0;
 }
+
+#endif

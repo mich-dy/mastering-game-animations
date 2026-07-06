@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec2 inUV;
 
@@ -16,7 +16,7 @@ vec3 sRGBToLinear(vec3 rgb) {
 }
 
 void main() {
-  vec3 albedo = texture(inputColor, vec3(inUV, gl_ViewIndex)).rgb;
+  vec3 albedo = texture(inputColor, vec3(inUV, XR_VIEW_INDEX)).rgb;
   albedo = sRGBToLinear(albedo);
   outColor = vec4(albedo, 1.0);
 }

@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec2 inUV;
 layout (location = 1) in flat uint inInstance;
@@ -51,11 +51,11 @@ float unlinearizeDepth(float depth) {
 
 vec3 getWorldPosFromDepth(vec2 uv) {
   float depth = 0.0;
-  depth = unlinearizeDepth(texture(lightInputDepth, vec3(uv, float(gl_ViewIndex))).r);
+  depth = unlinearizeDepth(texture(lightInputDepth, vec3(uv, float(XR_VIEW_INDEX))).r);
 
   vec2 xy = uv * 2.0 - 1.0;
   vec4 pos = vec4(xy, depth, 1.0);
-  pos = invProjectionMat[gl_ViewIndex] * pos;
+  pos = invProjectionMat[XR_VIEW_INDEX] * pos;
   pos.xyz /= pos.w;
 
   return pos.xyz;
@@ -75,8 +75,8 @@ void main() {
   vec3 lightDynDiff = vec3(0.0);
 
   vec3 viewPos = getWorldPosFromDepth(inUV);
-  vec3 worldPos = vec3(invViewMat[gl_ViewIndex] * vec4(getWorldPosFromDepth(inUV), 1.0));
-  vec3 normal = normalize(texture(lightInputNormal, vec3(inUV, float(gl_ViewIndex))).rgb * 2.0 - 1.0);
+  vec3 worldPos = vec3(invViewMat[XR_VIEW_INDEX] * vec4(getWorldPosFromDepth(inUV), 1.0));
+  vec3 normal = normalize(texture(lightInputNormal, vec3(inUV, float(XR_VIEW_INDEX))).rgb * 2.0 - 1.0);
 
   vec3 lightPos = lights[inInstance].position.xyz;
   vec3 lightDir = normalize(lightPos - worldPos);

@@ -138,7 +138,7 @@ bool DynamicShadowMapPipeline::init(VkRenderData& renderData,
   // dynamic rendering
   VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo{};
   pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-  pipelineRenderingCreateInfo.viewMask = 0b00111111;
+  pipelineRenderingCreateInfo.viewMask = kXRDynamicShadowMapViewMask;
   pipelineRenderingCreateInfo.depthAttachmentFormat = renderData.rdShadowMapDepthBufferData.format;
 
   VkGraphicsPipelineCreateInfo pipelineCreateInfo{};

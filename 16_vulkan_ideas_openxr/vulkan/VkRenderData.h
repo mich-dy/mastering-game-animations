@@ -13,7 +13,9 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <vulkan/vulkan.h>
+#if !defined(__ANDROID__)
 #include <GLFW/glfw3.h>
+#endif
 
 #include <VkBootstrap.h>
 #include <vk_mem_alloc.h>
@@ -24,6 +26,16 @@
 #include <Callbacks.h>
 #include <BoundingBox3D.h>
 #include <Timer.h>
+
+#if defined(__ANDROID__)
+inline constexpr uint32_t kXRPipelineViewMask = 0;
+inline constexpr uint32_t kXRShadowMapViewMask = 0;
+inline constexpr uint32_t kXRDynamicShadowMapViewMask = 0;
+#else
+inline constexpr uint32_t kXRPipelineViewMask = 0b11;
+inline constexpr uint32_t kXRShadowMapViewMask = 0b00001111;
+inline constexpr uint32_t kXRDynamicShadowMapViewMask = 0b00111111;
+#endif
 
 // morph animations only need those two
 struct VkMorphVertex {
@@ -245,7 +257,10 @@ struct XRVisibilityMask {
 };
 
 struct VkRenderData {
+#if !defined(__ANDROID__)
   GLFWwindow *rdWindow = nullptr;
+#endif
+  bool rdSkipDesktopMirror = false;
   bool rdWaylandFound = false;
 
   uint32_t rdWidth = 0;
@@ -507,6 +522,10 @@ struct VkRenderData {
 
   std::vector<const char*> rdXRDeviceExtensions{};
   std::vector<const char*> rdXRInstanceExtensions{};
+#if defined(__ANDROID__)
+  uintptr_t rdXRInstanceHandle = 0;
+  uint64_t rdXRSystemId = 0;
+#endif
 
   std::vector<VkImage> rdSwapchainImages{};
   std::vector<VkImageView> rdSwapchainImageViews{};

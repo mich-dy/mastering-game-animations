@@ -7,3 +7,13 @@ out
 *.swp
 .kdev4
 *.kdev4
+
+# Android build outputs
+.gradle/
+local.properties
+.cxx/
+**/build/
+*.apk
+
+# Helper directories
+terminals/

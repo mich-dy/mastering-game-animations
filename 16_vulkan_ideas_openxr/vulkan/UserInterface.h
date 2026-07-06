@@ -3,7 +3,9 @@
 #include <string>
 #include <vector>
 
+#if !defined(__ANDROID__)
 #include <imgui.h>
+#endif
 
 #include <VkRenderData.h>
 #include <AssimpModel.h>
@@ -141,7 +143,9 @@ class UserInterface {
 
     int mCurrentPlaylistPos = 0;
 
+#if !defined(__ANDROID__)
     static int nameInputFilter(ImGuiInputTextCallbackData* data);
+#endif
 
     VkSimpleMesh mOctreeLines{};
     float mOctreeZoomFactor = 1.0f;

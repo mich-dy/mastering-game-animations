@@ -5,7 +5,9 @@
 
 // Vulkan also before GLFW
 #include <vulkan/vulkan.h>
+#if !defined(__ANDROID__)
 #include <GLFW/glfw3.h>
+#endif
 
 #include <VkRenderData.h>
 

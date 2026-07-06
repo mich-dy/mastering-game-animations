@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec4 aPos;
 
@@ -14,7 +14,7 @@ layout (std140, set = 1, binding = 0) uniform Matrices {
 
 void main() {
   /* remove translation part from inverse view matrix */
-  texCoord = mat3(invViewMat[gl_ViewIndex]) * (invProjectionMat[gl_ViewIndex] * aPos).xyz;
+  texCoord = mat3(invViewMat[XR_VIEW_INDEX]) * (invProjectionMat[XR_VIEW_INDEX] * aPos).xyz;
 
   /* set z to 1.0 to force drawing on the far z plane */
   gl_Position = aPos.xyww;

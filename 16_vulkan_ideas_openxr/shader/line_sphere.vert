@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aColor;
@@ -29,6 +29,6 @@ void main() {
 
   mat3 scaleMat = createScaleMatrix(radius);
 
-  gl_Position = projectionMat[gl_ViewIndex] * viewMat[gl_ViewIndex] * vec4(scaleMat * aPos + boneCenter, 1.0);
+  gl_Position = projectionMat[XR_VIEW_INDEX] * viewMat[XR_VIEW_INDEX] * vec4(scaleMat * aPos + boneCenter, 1.0);
   lineColor = vec4(aColor, 1.0);
 }

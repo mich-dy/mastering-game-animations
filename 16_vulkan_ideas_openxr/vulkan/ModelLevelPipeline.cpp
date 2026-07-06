@@ -152,7 +152,7 @@ bool ModelLevelPipeline::init(VkRenderData& renderData, std::vector<VkFormat> co
   // dynamic rendering
   VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo{};
   pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-  pipelineRenderingCreateInfo.viewMask = 0b11;
+  pipelineRenderingCreateInfo.viewMask = kXRPipelineViewMask;
   pipelineRenderingCreateInfo.colorAttachmentCount = static_cast<uint32_t>(colorAttachmentFormats.size());
   pipelineRenderingCreateInfo.pColorAttachmentFormats = colorAttachmentFormats.data();
   pipelineRenderingCreateInfo.depthAttachmentFormat = renderData.rdDepthBufferData.format;
@@ -177,7 +177,12 @@ bool ModelLevelPipeline::init(VkRenderData& renderData, std::vector<VkFormat> co
 
   VkResult result = vkCreateGraphicsPipelines(renderData.rdVkbDevice.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
   if (result != VK_SUCCESS) {
-    Logger::log(1, "%s error: could not create rendering pipeline (error: %i)\n", __FUNCTION__, result);
+    Logger::log(1, "%s error: could not create rendering pipeline (error: %i) shaders %s / %s viewMask=0x%x depthFmt=%i\n",
+      __FUNCTION__, result, vertexShaderFilename.c_str(), fragmentShaderFilename.c_str(),
+      pipelineRenderingCreateInfo.viewMask, static_cast<int>(pipelineRenderingCreateInfo.depthAttachmentFormat));
+    for (size_t i = 0; i < colorAttachmentFormats.size(); ++i) {
+      Logger::log(1, "%s error: color attachment %zu format=%i\n", __FUNCTION__, i, static_cast<int>(colorAttachmentFormats.at(i)));
+    }
     Shader::cleanup(renderData.rdVkbDevice.device, vertexModule);
     Shader::cleanup(renderData.rdVkbDevice.device, fragmentModule);
     vkDestroyPipelineLayout(renderData.rdVkbDevice.device, pipelineLayout, nullptr);

@@ -5,6 +5,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(Main)
 
+if(ANDROID)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  set(CMAKE_DEBUG_POSTFIX "")
+endif()
+
 # use custom file to find libraries
 if(WIN32)
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -112,6 +117,9 @@ endif()
 
 # get vk-bootstrap
 include(FetchContent)
+if(ANDROID)
+  set(VK_BOOTSTRAP_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
+endif()
 FetchContent_Declare(
   vk_bootstrap
   GIT_REPOSITORY https://github.com/charles-lunarg/vk-bootstrap
@@ -129,8 +137,8 @@ if(NOT vk_bootstrap_POPULATED)
 endif()
 
 # get VMA
-# Skip downloading if Vulkan SDK has been found
-if (NOT DEFINED ENV{VK_SDK_PATH})
+# Skip downloading if Vulkan SDK has been found (always fetch on Android)
+if (ANDROID OR NOT DEFINED ENV{VK_SDK_PATH})
   include(FetchContent)
   FetchContent_Declare(
     vma
@@ -148,12 +156,11 @@ if (NOT DEFINED ENV{VK_SDK_PATH})
   endif()
 
   # set variable that will be used later
-  set(VMA_INCLUDE_DIR ${vma_SOURCE_DIR}/vma)
+  set(VMA_INCLUDE_DIR ${vma_SOURCE_DIR}/include)
 endif()
 
-# get YAML-CPP, GLFW3 and GLM via FetchContent on Windows systems
-if(WIN32 AND NOT MINGW)
-  # yaml-cpp
+# yaml-cpp and GLM via FetchContent on Android/Windows
+if(ANDROID OR (WIN32 AND NOT MINGW))
   FetchContent_Declare(
     yaml-cpp
     GIT_REPOSITORY https://github.com/jbeder/yaml-cpp
@@ -169,7 +176,25 @@ if(WIN32 AND NOT MINGW)
     add_subdirectory(${yaml-cpp_SOURCE_DIR} ${yaml-cpp_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif()
 
-  # get and build GLFW3
+  FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm
+    GIT_TAG        1.0.3
+    GIT_SHALLOW 1
+  )
+
+  FetchContent_MakeAvailable(glm)
+
+  FetchContent_GetProperties(glm)
+  if(NOT glm_POPULATED)
+    FetchContent_Populate(glm)
+    add_subdirectory(${glm_SOURCE_DIR} EXCLUDE_FROM_ALL)
+  endif()
+
+  set(GLM_INCLUDE_DIR ${glm_SOURCE_DIR})
+endif()
+
+if(WIN32 AND NOT MINGW AND NOT ANDROID)
   FetchContent_Declare(
     glfw3
     GIT_REPOSITORY https://github.com/glfw/glfw
@@ -185,32 +210,24 @@ if(WIN32 AND NOT MINGW)
     add_subdirectory(${glfw3_SOURCE_DIR} ${glfw3_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif()
 
-  # set variables that will be used later
   set(GLFW3_INCLUDE_DIR ${glfw3_SOURCE_DIR}/include)
   set(GLFW3_LIBRARY "${glfw3_BINARY_DIR}/src/$<CONFIGURATION>/glfw3.lib")
+endif()
 
-  # Skip downloading if Vulkan SDK has been found
-  if (NOT DEFINED ENV{VK_SDK_PATH})
-    # get GLM
-    FetchContent_Declare(
-      glm
-      GIT_REPOSITORY https://github.com/g-truc/glm
-      GIT_TAG        1.0.3
-      GIT_SHALLOW 1
-    )
+if(ANDROID)
+  set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+  set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+  set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
-    # GLM is header only, but needs to be populated for the download
-    FetchContent_MakeAvailable(glm)
-
-    FetchContent_GetProperties(glm)
-    if(NOT glm_POPULATED)
-      FetchContent_Populate(glm)
-      add_subdirectory(${glm_SOURCE_DIR} EXCLUDE_FROM_ALL)
-    endif()
-
-    # set variables that will be used later
-    set(GLM_INCLUDE_DIR ${glm_SOURCE_DIR})
-  endif()
+  FetchContent_Declare(
+    assimp
+    GIT_REPOSITORY https://github.com/assimp/assimp
+    GIT_TAG v5.4.3
+    GIT_SHALLOW 1
+  )
+  FetchContent_MakeAvailable(assimp)
 endif()
 
 # OpenXR SDK
@@ -232,7 +249,6 @@ endif()
 
 
 file(GLOB SOURCES
-  Main.cpp
   window/*.cpp
   tools/*.cpp
   vulkan/*.cpp
@@ -240,37 +256,75 @@ file(GLOB SOURCES
   octree/*.cpp
   graphnodes/*.cpp
   vr/*.cpp
-  ${imgui_SOURCE_DIR}/*.cpp
-  # .cpp files for backends
-  ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
-  ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
-  ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
-  ${filedialog_SOURCE_DIR}/*.cpp
   ${vk_bootstrap_SOURCE_DIR}/*.cpp
-  ${imnodes_SOURCE_DIR}/imnodes.cpp
 )
 
-add_executable(${PROJECT_NAME} ${SOURCES})
+file(GLOB IMGUI_SOURCES ${imgui_SOURCE_DIR}/*.cpp)
+file(GLOB FILEDIALOG_SOURCES ${filedialog_SOURCE_DIR}/*.cpp)
 
-target_include_directories(${PROJECT_NAME} PUBLIC window tools vulkan model octree graphnodes vr)
+if(ANDROID)
+  list(APPEND SOURCES
+    platform/AndroidMain.cpp
+    platform/AssetPaths.cpp
+    vulkan/UserInterface_android.cpp
+    ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c
+    ${IMGUI_SOURCES}
+    ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
+    ${imnodes_SOURCE_DIR}/imnodes.cpp
+  )
+  list(REMOVE_ITEM SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/AudioManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/vulkan/UserInterface.cpp
+  )
+else()
+  list(APPEND SOURCES
+    Main.cpp
+    ${IMGUI_SOURCES}
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+    ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
+    ${FILEDIALOG_SOURCES}
+    ${imnodes_SOURCE_DIR}/imnodes.cpp
+  )
+endif()
 
-# non-standard include dirs
-target_include_directories(${PROJECT_NAME} PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends
-  ${filedialog_SOURCE_DIR} ${stbi_SOURCE_DIR} ${yaml-cpp_SOURCE_DIR} ${imnodes_SOURCE_DIR}
-  ${vk_bootstrap_SOURCE_DIR}/src ${vma_SOURCE_DIR}/include)
+if(ANDROID)
+  add_library(${PROJECT_NAME} SHARED ${SOURCES})
+else()
+  add_executable(${PROJECT_NAME} ${SOURCES})
+endif()
+
+target_include_directories(${PROJECT_NAME} PUBLIC window tools vulkan model octree graphnodes vr platform)
+
+if(ANDROID)
+  target_include_directories(${PROJECT_NAME} PRIVATE ${imgui_SOURCE_DIR} ${imnodes_SOURCE_DIR}
+    ${stbi_SOURCE_DIR} ${yaml-cpp_SOURCE_DIR} ${vk_bootstrap_SOURCE_DIR}/src ${VMA_INCLUDE_DIR})
+else()
+  target_include_directories(${PROJECT_NAME} PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends
+    ${filedialog_SOURCE_DIR} ${stbi_SOURCE_DIR} ${yaml-cpp_SOURCE_DIR} ${imnodes_SOURCE_DIR}
+    ${vk_bootstrap_SOURCE_DIR}/src ${vma_SOURCE_DIR}/include)
+endif()
 
 find_package(Vulkan REQUIRED)
 
-find_package(glfw3 3.3 REQUIRED)
-find_package(glm REQUIRED)
-find_package(assimp REQUIRED)
-find_package(yaml-cpp REQUIRED)
-find_package(vma REQUIRED)
-find_package(SDL2 REQUIRED)
-find_package(SDL2_mixer REQUIRED)
+if(ANDROID)
+  set(ASSIMP_INCLUDE_DIR ${assimp_SOURCE_DIR}/include)
+  set(ASSIMP_LIBRARY assimp)
+  set(ASSIMP_ZLIB_LIBRARY z)
+  include_directories(${GLM_INCLUDE_DIR} ${ASSIMP_INCLUDE_DIR} ${yaml-cpp_SOURCE_DIR}/include
+    ${VMA_SOURCE_DIR}/include ${ANDROID_NDK}/sources/android/native_app_glue)
+else()
+  find_package(glfw3 3.3 REQUIRED)
+  find_package(glm REQUIRED)
+  find_package(assimp REQUIRED)
+  find_package(yaml-cpp REQUIRED)
+  find_package(vma REQUIRED)
+  find_package(SDL2 REQUIRED)
+  find_package(SDL2_mixer REQUIRED)
 
-include_directories(${GLFW3_INCLUDE_DIR} ${GLM_INCLUDE_DIRS} ${ASSIMP_INCLUDE_DIR} ${YAML_CPP_INCLUDE_DIR}
-  ${SDL2_INCLUDE_DIR} ${SDL2_MIXER_INCLUDE_DIR} ${VMA_SOURCE_DIR}/vma)
+  include_directories(${GLFW3_INCLUDE_DIR} ${GLM_INCLUDE_DIRS} ${ASSIMP_INCLUDE_DIR} ${YAML_CPP_INCLUDE_DIR}
+    ${SDL2_INCLUDE_DIR} ${SDL2_MIXER_INCLUDE_DIR} ${VMA_SOURCE_DIR}/vma)
+endif()
 
 
 # compile shaders
@@ -280,15 +334,39 @@ file(GLOB GLSL_SOURCE_FILES
   shader/*.comp
 )
 
+if(ANDROID AND NOT Vulkan_GLSLC_EXECUTABLE)
+  if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+    set(_NDK_HOST_TAG "windows-x86_64")
+    set(_GLSLC_SUFFIX ".exe")
+  elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    set(_NDK_HOST_TAG "linux-x86_64")
+  elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+    if(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64")
+      set(_NDK_HOST_TAG "darwin-arm64")
+    else()
+      set(_NDK_HOST_TAG "darwin-x86_64")
+    endif()
+  endif()
+  if(_NDK_HOST_TAG)
+    set(Vulkan_GLSLC_EXECUTABLE "${ANDROID_NDK}/shader-tools/${_NDK_HOST_TAG}/glslc${_GLSLC_SUFFIX}")
+    message(STATUS "Android shader build using ${Vulkan_GLSLC_EXECUTABLE}")
+  endif()
+endif()
+
 if(Vulkan_GLSLC_EXECUTABLE)
   message("Using glslc to compile shaders")
   foreach(GLSL ${GLSL_SOURCE_FILES})
     get_filename_component(FILE_NAME ${GLSL} NAME)
     set(SPIRV "${CMAKE_SOURCE_DIR}/shader/${FILE_NAME}.spv")
+    if(ANDROID)
+      set(_GLSLC_FLAGS -DANDROID_XR_MONO=1 -I${CMAKE_SOURCE_DIR}/shader)
+    else()
+      set(_GLSLC_FLAGS -I${CMAKE_SOURCE_DIR}/shader)
+    endif()
     add_custom_command(
       OUTPUT ${SPIRV}
-      COMMAND ${Vulkan_GLSLC_EXECUTABLE} -o ${SPIRV} ${GLSL}
-      DEPENDS ${GLSL})
+      COMMAND ${Vulkan_GLSLC_EXECUTABLE} ${_GLSLC_FLAGS} -o ${SPIRV} ${GLSL}
+      DEPENDS ${GLSL} ${CMAKE_SOURCE_DIR}/shader/xr_view.glsl)
     list(APPEND SPIRV_BINARY_FILES ${SPIRV})
   endforeach(GLSL)
 elseif (Vulkan_GLSLANG_VALIDATOR_EXECUTABLE)
@@ -310,6 +388,7 @@ add_custom_target(
 )
 add_dependencies(${PROJECT_NAME} Shaders)
 
+if(NOT ANDROID)
 add_custom_command(TARGET Shaders POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
   "$<TARGET_PROPERTY:${PROJECT_NAME},SOURCE_DIR>/shader"
@@ -400,9 +479,10 @@ add_custom_command(TARGET ControlsTxtFile POST_BUILD
   "$<TARGET_PROPERTY:${PROJECT_NAME},SOURCE_DIR>/controls.txt"
   "$<TARGET_PROPERTY:${PROJECT_NAME},BINARY_DIR>/$<CONFIGURATION>/controls.txt"
 )
+endif()
 
 # Copy SDL2 DLLs
-if (WIN32 AND NOT MINGW)
+if (WIN32 AND NOT MINGW AND NOT ANDROID)
   add_custom_command(
     TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -439,7 +519,19 @@ if(WIN32)
   add_definitions(-DSDL_MAIN_HANDLED)
 endif()
 
-if(MSVC)
+if(ANDROID)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE XR_USE_PLATFORM_ANDROID)
+  target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${ASSIMP_LIBRARY}
+    ${ASSIMP_ZLIB_LIBRARY}
+    Vulkan::Vulkan
+    yaml-cpp::yaml-cpp
+    vk-bootstrap::vk-bootstrap
+    openxr_loader
+    android
+    log
+    dl)
+elseif(MSVC)
   target_link_libraries(${PROJECT_NAME} PRIVATE
     glfw
     ${ASSIMP_LIBRARY}
@@ -451,8 +543,6 @@ if(MSVC)
     vk-bootstrap::vk-bootstrap
     openxr_loader)
 else()
-  # Clang and GCC may need libstd++ and libmath
-  # old YAML-CPP has only target 'yaml-cpp' defined and will be deprecated soon, version 0.8+ knows 'yaml-cpp::yaml-cpp'
   if(yaml-cpp_VERSION VERSION_LESS "0.8")
     target_link_libraries(${PROJECT_NAME} PRIVATE
     ${GLFW3_LIBRARY}

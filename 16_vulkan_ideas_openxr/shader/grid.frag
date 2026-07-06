@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 // Source:
 // https://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
@@ -47,12 +47,12 @@ vec4 grid(vec3 fragPos3D, float scale, bool drawAxis) {
 }
 
 float computeDepth(vec3 pos) {
-  vec4 clipSpacePos = projectionMat[gl_ViewIndex] * viewMat[gl_ViewIndex] * vec4(pos.xyz, 1.0);
+  vec4 clipSpacePos = projectionMat[XR_VIEW_INDEX] * viewMat[XR_VIEW_INDEX] * vec4(pos.xyz, 1.0);
   return (clipSpacePos.z / clipSpacePos.w);
 }
 
 float computeLinearDepth(vec3 pos) {
-  vec4 clipSpacePos = projectionMat[gl_ViewIndex] * viewMat[gl_ViewIndex] * vec4(pos.xyz, 1.0);
+  vec4 clipSpacePos = projectionMat[XR_VIEW_INDEX] * viewMat[XR_VIEW_INDEX] * vec4(pos.xyz, 1.0);
   float clipSpaceDepth = (clipSpacePos.z / clipSpacePos.w);
   float linearDepth = (nearPlane * farPlane) / (farPlane + nearPlane - clipSpaceDepth * (farPlane - nearPlane));
   // normalize

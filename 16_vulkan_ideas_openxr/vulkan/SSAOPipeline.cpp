@@ -109,7 +109,7 @@ bool SSAOPipeline::init(VkRenderData& renderData, std::vector<VkFormat> colorAtt
   // dynamic rendering
   VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo{};
   pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-  pipelineRenderingCreateInfo.viewMask = 0b11;
+  pipelineRenderingCreateInfo.viewMask = kXRPipelineViewMask;
   pipelineRenderingCreateInfo.colorAttachmentCount = static_cast<uint32_t>(colorAttachmentFormats.size());
   pipelineRenderingCreateInfo.pColorAttachmentFormats = colorAttachmentFormats.data();
   pipelineRenderingCreateInfo.depthAttachmentFormat = renderData.rdDepthBufferData.format;

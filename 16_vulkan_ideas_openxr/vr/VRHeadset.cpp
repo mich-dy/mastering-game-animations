@@ -7,12 +7,29 @@
 
 #include <Logger.h>
 
+#if defined(__ANDROID__)
+#include <Platform.h>
+#include <android_native_app_glue.h>
+#endif
+
+#if defined(__ANDROID__)
+bool VRHeadset::init(void* window, ModelInstanceCamCallbacks callbacks) {
+#else
 bool VRHeadset::init(GLFWwindow* window, ModelInstanceCamCallbacks callbacks) {
+#endif
   Logger::log(1, "%s: VR Headset init start\n", __FUNCTION__);
+#if !defined(__ANDROID__)
   if (!window) {
     Logger::log(1, "%s error: invalid GLFWwindow handle\n", __FUNCTION__);
     return false;
   }
+#endif
+
+#if defined(__ANDROID__)
+  if (!initializeAndroidLoader()) {
+    return false;
+  }
+#endif
 
   if (!createXRInstance()) {
     return false;
@@ -62,7 +79,12 @@ bool VRHeadset::init(GLFWwindow* window, ModelInstanceCamCallbacks callbacks) {
   mRenderer->setRendererMICCallbacks(callbacks);
   mRenderer->setXRSize(mWidth, mHeight);
 
+#if defined(__ANDROID__)
+  mRenderer->setXRContext(reinterpret_cast<uintptr_t>(mXRInstance), static_cast<uint64_t>(mSystemID));
+  if (!mRenderer->init(nullptr, mVKDeviceExtensionsForXR, mVKInstanceExtensionsForXR)) {
+#else
   if (!mRenderer->init(window, mVKDeviceExtensionsForXR, mVKInstanceExtensionsForXR)) {
+#endif
     return false;
   }
 
@@ -71,6 +93,13 @@ bool VRHeadset::init(GLFWwindow* window, ModelInstanceCamCallbacks callbacks) {
   if (!createXRSession()) {
     return false;
   }
+
+#if defined(__ANDROID__)
+  if (!mRenderer->createVulkanPipelines()) {
+    Logger::log(1, "%s error: could not create Vulkan pipelines after OpenXR session\n", __FUNCTION__);
+    return false;
+  }
+#endif
 
   if (!getVisibilityMask()) {
     return false;
@@ -306,8 +335,12 @@ bool VRHeadset::createXRInstance() {
   mXRAppInfo.applicationVersion = 1;
   std::strncpy(mXRAppInfo.engineName, "Michael's Engine", XR_MAX_ENGINE_NAME_SIZE);
   mXRAppInfo.engineVersion = 1;
+#if defined(__ANDROID__)
+  mXRAppInfo.apiVersion = XR_MAKE_VERSION(1, 1, 0);
+#else
   // Steam still has no support for API v1.1
   mXRAppInfo.apiVersion = XR_MAKE_VERSION(1, 0, 34);
+#endif
 
   // Get API Layers
   uint32_t apiLayerCount = 0;
@@ -334,7 +367,9 @@ bool VRHeadset::createXRInstance() {
 
   // Activate Layers
   Logger::log(1, "%s: Trying to activate layers\n", __FUNCTION__);
+#if !defined(__ANDROID__)
   mAPILayers.push_back("XR_APILAYER_LUNARG_core_validation");
+#endif
 
   for (auto &requestedAPILayer : mAPILayers) {
     bool found = false;
@@ -384,6 +419,10 @@ bool VRHeadset::createXRInstance() {
   Logger::log(1, "%s: Trying to activate extensions\n", __FUNCTION__);
   mInstanceExtensions.push_back(XR_EXT_DEBUG_UTILS_EXTENSION_NAME);
   mInstanceExtensions.push_back(XR_KHR_VULKAN_ENABLE_EXTENSION_NAME);
+#if defined(__ANDROID__)
+  mInstanceExtensions.push_back(XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME);
+  mInstanceExtensions.push_back(XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME);
+#endif
   mInstanceExtensions.push_back(XR_KHR_VISIBILITY_MASK_EXTENSION_NAME);
 
   for (auto &requestedInstanceExtension : mInstanceExtensions) {
@@ -416,6 +455,13 @@ bool VRHeadset::createXRInstance() {
   instanceInfo.enabledApiLayerNames = mActiveAPILayers.data();
   instanceInfo.enabledExtensionCount = static_cast<uint32_t>(mActiveInstanceExtensions.size());
   instanceInfo.enabledExtensionNames = mActiveInstanceExtensions.data();
+
+#if defined(__ANDROID__)
+  XrInstanceCreateInfoAndroidKHR androidCreateInfo{XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR};
+  androidCreateInfo.applicationVM = mJavaVM;
+  androidCreateInfo.applicationActivity = mActivityContext;
+  instanceInfo.next = reinterpret_cast<XrBaseInStructure *>(&androidCreateInfo);
+#endif
 
   result = xrCreateInstance(&instanceInfo, &mXRInstance);
   if (result != XR_SUCCESS) {
@@ -989,6 +1035,24 @@ bool VRHeadset::suggestXRBindings() {
     { mFlyUpDownAction, CreateXrPath("/user/hand/left/input/thumbstick/y") }
   });
 
+  anyOk |= suggestXRBinding("/interaction_profiles/oculus/touch_controller",
+  {
+    { mPalmPoseAction, CreateXrPath("/user/hand/right/input/grip/pose") },
+    { mPalmPoseAction, CreateXrPath("/user/hand/left/input/grip/pose") },
+    { mFlyLeftRighAction, CreateXrPath("/user/hand/right/input/thumbstick/x") },
+    { mFlyFwdBackAction, CreateXrPath("/user/hand/right/input/thumbstick/y") },
+    { mFlyUpDownAction, CreateXrPath("/user/hand/left/input/thumbstick/y") }
+  });
+
+  anyOk |= suggestXRBinding("/interaction_profiles/khr/simple_controller",
+  {
+    { mPalmPoseAction, CreateXrPath("/user/hand/right/input/grip/pose") },
+    { mPalmPoseAction, CreateXrPath("/user/hand/left/input/grip/pose") },
+    { mFlyLeftRighAction, CreateXrPath("/user/hand/right/input/select/click") },
+    { mFlyFwdBackAction, CreateXrPath("/user/hand/right/input/menu/click") },
+    { mFlyUpDownAction, CreateXrPath("/user/hand/left/input/select/click") }
+  });
+
   if (!anyOk) {
     Logger::log(1, "%s error: Could not finish suggested bindings\n", __FUNCTION__);
     return false;
@@ -1399,3 +1463,37 @@ XrBool32 VRHeadset::handleXRErrors(XrDebugUtilsMessageSeverityFlagsEXT severity,
 
     return XR_FALSE;
 }
+
+#if defined(__ANDROID__)
+bool VRHeadset::initializeAndroidLoader() {
+  android_app *app = Platform::getAndroidApp();
+  if (!app || !app->activity) {
+    Logger::log(1, "%s error: Android app activity unavailable\n", __FUNCTION__);
+    return false;
+  }
+
+  mJavaVM = app->activity->vm;
+  mActivityContext = app->activity->clazz;
+
+  PFN_xrInitializeLoaderKHR initializeLoader = nullptr;
+  XrResult result = xrGetInstanceProcAddr(XR_NULL_HANDLE, "xrInitializeLoaderKHR",
+    reinterpret_cast<PFN_xrVoidFunction *>(&initializeLoader));
+  if (result != XR_SUCCESS || initializeLoader == nullptr) {
+    Logger::log(1, "%s error: xrInitializeLoaderKHR unavailable (error: %i)\n", __FUNCTION__, result);
+    return false;
+  }
+
+  XrLoaderInitInfoAndroidKHR loaderInitInfo{XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR};
+  loaderInitInfo.applicationVM = mJavaVM;
+  loaderInitInfo.applicationContext = mActivityContext;
+
+  result = initializeLoader(reinterpret_cast<const XrLoaderInitInfoBaseHeaderKHR *>(&loaderInitInfo));
+  if (result != XR_SUCCESS) {
+    Logger::log(1, "%s error: failed to initialize Android OpenXR loader (error: %i)\n", __FUNCTION__, result);
+    return false;
+  }
+
+  Logger::log(1, "%s: Android OpenXR loader initialized\n", __FUNCTION__);
+  return true;
+}
+#endif

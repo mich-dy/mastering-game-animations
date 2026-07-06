@@ -1,4 +1,6 @@
+#if !defined(__ANDROID__)
 #include <imgui_impl_glfw.h>
+#endif
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
@@ -42,6 +44,51 @@
 
 #include <Logger.h>
 
+#if defined(__ANDROID__)
+bool VkRenderer::init(void *window, std::vector<std::string> &deviceExtForXR, std::vector<std::string> &instExtsForXR) {
+  int width = 1024;
+  int height = 768;
+  mRenderData.rdWidth = width;
+  mRenderData.rdHalfWidth = width / 2;
+  mRenderData.rdHeight = height;
+  mRenderData.rdWindowWidth = width;
+  mRenderData.rdWindowHeight = height;
+
+  unsigned int seed = mRandomDevice();
+  mRandomEngine = std::default_random_engine(seed);
+
+  // init app mode map first
+  mRenderData.rdAppModeMap[appMode::edit] = "Edit";
+  mRenderData.rdAppModeMap[appMode::view] = "View";
+
+  // save orig window title, add current mode
+  mOrigWindowTitle = mModelInstCamCallbacks.micGetWindowTitleFunction();
+  setModeInWindowTitle();
+
+  // image formata needs to be set before Vulkan init
+  mRenderData.rdDepthBufferData.format = VK_FORMAT_D16_UNORM;
+  mRenderData.rdSSAONoiseBufferData.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  mRenderData.rdShadowMapCombinedDepthBufferData.format = VK_FORMAT_D16_UNORM;
+
+  // XR extensions
+  std::vector<const char*> devExts;
+  for (const auto& val : deviceExtForXR) {
+    devExts.push_back(val.c_str());
+    Logger::log(1, "%s : Activate device extension %s\n", __FUNCTION__, val.c_str());
+  }
+  mRenderData.rdXRDeviceExtensions = devExts;
+
+  std::vector<const char*> instExts;
+  for (const auto& val : instExtsForXR) {
+    instExts.push_back(val.c_str());
+    Logger::log(1, "%s : Activate instance extension %s\n", __FUNCTION__, val.c_str());
+  }
+  mRenderData.rdXRInstanceExtensions = instExts;
+
+  if (!VkHelper::initVulkan(mRenderData)) {
+    return false;
+  }
+#else
 bool VkRenderer::init(GLFWwindow *window, std::vector<std::string> &deviceExtForXR, std::vector<std::string> &instExtsForXR) {
   mRenderData.rdWindow = window;
 
@@ -93,6 +140,7 @@ bool VkRenderer::init(GLFWwindow *window, std::vector<std::string> &deviceExtFor
   if (!VkHelper::initVulkan(mRenderData)) {
     return false;
   }
+#endif
 
   if (!initUserInterface()) {
     return false;
@@ -2095,9 +2143,11 @@ void VkRenderer::setSize(unsigned int width, unsigned int height) {
   }
   Logger::log(1, "%s: resized window to %ix%i\n", __FUNCTION__, width, height);
 
+#if !defined(__ANDROID__)
   float xScale, yScale;
   glfwGetWindowContentScale(mRenderData.rdWindow, &xScale, &yScale);
   Logger::log(1, "%s: window scale is %.2f (x) / %.2f (y) \n", __FUNCTION__, xScale, yScale);
+#endif
 }
 
 void VkRenderer::setXRSize(unsigned int width, unsigned int height) {
@@ -2132,6 +2182,7 @@ void VkRenderer::setAppMode(appMode newMode) {
 }
 
 void VkRenderer::toggleFullscreen() {
+#if !defined(__ANDROID__)
   mRenderData.rdFullscreen = mRenderData.rdFullscreen ? false : true;
 
   static int xPos = 0;
@@ -2149,9 +2200,11 @@ void VkRenderer::toggleFullscreen() {
   } else {
     glfwSetWindowMonitor(mRenderData.rdWindow, nullptr, xPos, yPos, width, height, 0);
   }
+#endif
 }
 
 void VkRenderer::checkMouseEnable() {
+#if !defined(__ANDROID__)
   if (mMouseLock || mMouseMove || mRenderData.rdApplicationMode != appMode::edit) {
     glfwSetInputMode(mRenderData.rdWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     // enable raw mode if possible
@@ -2161,9 +2214,11 @@ void VkRenderer::checkMouseEnable() {
   } else {
     glfwSetInputMode(mRenderData.rdWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
   }
+#endif
 }
 
 void VkRenderer::handleKeyEvents(int key, int scancode, int action, int mods) {
+#if !defined(__ANDROID__)
   // forward to ImGui only when in edit mode
   if (mRenderData.rdApplicationMode == appMode::edit) {
     ImGuiIO& io = ImGui::GetIO();
@@ -2285,9 +2340,11 @@ void VkRenderer::handleKeyEvents(int key, int scancode, int action, int mods) {
   }
 
   checkMouseEnable();
+#endif
 }
 
 void VkRenderer::handleMouseButtonEvents(int button, int action, int mods) {
+#if !defined(__ANDROID__)
   // forward to ImGui only when in edit mode
   if (mRenderData.rdApplicationMode == appMode::edit) {
     ImGuiIO& io = ImGui::GetIO();
@@ -2356,9 +2413,11 @@ void VkRenderer::handleMouseButtonEvents(int button, int action, int mods) {
   }
 
   checkMouseEnable();
+#endif
 }
 
 void VkRenderer::handleMousePositionEvents(double xPos, double yPos) {
+#if !defined(__ANDROID__)
   // forward to ImGui only when in edit mode
   if (mRenderData.rdApplicationMode == appMode::edit) {
     ImGuiIO& io = ImGui::GetIO();
@@ -2504,9 +2563,11 @@ void VkRenderer::handleMousePositionEvents(double xPos, double yPos) {
   // save old values
   mMouseXPos = static_cast<int>(xPos);
   mMouseYPos = static_cast<int>(yPos);
+#endif
 }
 
 void VkRenderer::handleMouseWheelEvents(double xOffset, double yOffset) {
+#if !defined(__ANDROID__)
   // forward to ImGui only when in edit mode
   if (mRenderData.rdApplicationMode == appMode::edit) {
     ImGuiIO& io = ImGui::GetIO();
@@ -2547,9 +2608,11 @@ void VkRenderer::handleMouseWheelEvents(double xOffset, double yOffset) {
 
     cam->setCameraSettings(camSettings);
   }
+#endif
 }
 
 void VkRenderer::handleMovementKeys() {
+#if !defined(__ANDROID__)
   mRenderData.rdMoveForward = 0;
   mRenderData.rdMoveRight = 0;
   mRenderData.rdMoveUp = 0;
@@ -2693,6 +2756,7 @@ void VkRenderer::handleMovementKeys() {
       }
     }
   }
+#endif
 }
 
 bool VkRenderer::createAABBLookup(std::shared_ptr<AssimpModel> model) {
@@ -5898,7 +5962,7 @@ bool VkRenderer::renderGraphics() {
   visMaskRenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
   visMaskRenderInfo.renderArea = renderArea;
   visMaskRenderInfo.layerCount = 2;
-  visMaskRenderInfo.viewMask = 0b00000011;
+  visMaskRenderInfo.viewMask = kXRPipelineViewMask;
   visMaskRenderInfo.colorAttachmentCount = static_cast<uint32_t>(visMaskttachmentInfos.size());
   visMaskRenderInfo.pColorAttachments = visMaskttachmentInfos.data();
   visMaskRenderInfo.pDepthAttachment = &visDepthAttachmentInfo;
@@ -5979,7 +6043,7 @@ bool VkRenderer::renderGraphics() {
   renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
   renderInfo.renderArea = renderArea;
   renderInfo.layerCount = 2;
-  renderInfo.viewMask = 0b00000011;
+  renderInfo.viewMask = kXRPipelineViewMask;
   renderInfo.colorAttachmentCount = static_cast<uint32_t>(attachmentInfos.size());
   renderInfo.pColorAttachments = attachmentInfos.data();
   renderInfo.pDepthAttachment = &depthAttachmentInfo;
@@ -6027,7 +6091,7 @@ bool VkRenderer::renderGraphics() {
     lightSphereRenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     lightSphereRenderInfo.renderArea = renderArea;
     lightSphereRenderInfo.layerCount = 2;
-    lightSphereRenderInfo.viewMask = 0b11;
+    lightSphereRenderInfo.viewMask = kXRPipelineViewMask;
     lightSphereRenderInfo.colorAttachmentCount = static_cast<uint32_t>(lightSphereAttachmentInfos.size());
     lightSphereRenderInfo.pColorAttachments = lightSphereAttachmentInfos.data();
 
@@ -6123,7 +6187,7 @@ bool VkRenderer::renderGraphics() {
     ssaoRenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     ssaoRenderInfo.renderArea = renderArea;
     ssaoRenderInfo.layerCount = 2;
-    ssaoRenderInfo.viewMask = 0b11;
+    ssaoRenderInfo.viewMask = kXRPipelineViewMask;
     ssaoRenderInfo.colorAttachmentCount = static_cast<uint32_t>(ssaoAttachmentInfos.size());
     ssaoRenderInfo.pColorAttachments = ssaoAttachmentInfos.data();
 
@@ -6158,7 +6222,7 @@ bool VkRenderer::renderGraphics() {
     ssaoBlurRenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     ssaoBlurRenderInfo.renderArea = renderArea;
     ssaoBlurRenderInfo.layerCount = 2;
-    ssaoBlurRenderInfo.viewMask = 0b11;
+    ssaoBlurRenderInfo.viewMask = kXRPipelineViewMask;
     ssaoBlurRenderInfo.colorAttachmentCount = static_cast<uint32_t>(ssaoBlurAttachmentInfos.size());
     ssaoBlurRenderInfo.pColorAttachments = ssaoBlurAttachmentInfos.data();
 
@@ -6229,7 +6293,7 @@ bool VkRenderer::renderGraphics() {
   compositeRenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
   compositeRenderInfo.renderArea = renderArea;
   compositeRenderInfo.layerCount = 2;
-  compositeRenderInfo.viewMask = 0b00000011;
+  compositeRenderInfo.viewMask = kXRPipelineViewMask;
   compositeRenderInfo.colorAttachmentCount = static_cast<uint32_t>(compositeAttachmentInfos.size());
   compositeRenderInfo.pColorAttachments = compositeAttachmentInfos.data();
   compositeRenderInfo.pDepthAttachment = &depthAttachmentInfo;
@@ -6433,6 +6497,7 @@ bool VkRenderer::renderGraphics() {
   }
   vkCmdEndRendering(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame));
 
+  if (!mRenderData.rdSkipDesktopMirror) {
   // copy images to swapchain, must be done via shaders as swapchain may be color attachment only
   VkViewport swapchainCopyViewport{};
   swapchainCopyViewport.x = 0.0f;
@@ -6508,7 +6573,9 @@ bool VkRenderer::renderGraphics() {
   mRenderData.rdUIDrawTime = mRenderData.rdUIDrawTimer.stop();
 
   vkCmdEndRendering(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame));
+  }
 
+  if (!mRenderData.rdSkipDesktopMirror) {
   // layout transition
   // swapchain image to present
   VkImageSubresourceRange imageSSR;
@@ -6534,6 +6601,7 @@ bool VkRenderer::renderGraphics() {
     0, nullptr, 0, nullptr,
     1, &secondImageMemoryBarrier // pImageMemoryBarriers
   );
+  }
 
   return true;
 }
@@ -6658,12 +6726,15 @@ bool VkRenderer::submitGraphics() {
   VkSubmitInfo submitInfo{};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-  std::vector<VkSemaphore> waitSemaphores = { mRenderData.rdPresentSemaphores.at(mRenderData.currentFrame) };
-  std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-  submitInfo.pWaitDstStageMask = waitStages.data();
-
-  submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
-  submitInfo.pWaitSemaphores = waitSemaphores.data();
+  std::vector<VkSemaphore> waitSemaphores{};
+  std::vector<VkPipelineStageFlags> waitStages{};
+  if (!mRenderData.rdSkipDesktopMirror) {
+    waitSemaphores = { mRenderData.rdPresentSemaphores.at(mRenderData.currentFrame) };
+    waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    submitInfo.pWaitDstStageMask = waitStages.data();
+    submitInfo.waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size());
+    submitInfo.pWaitSemaphores = waitSemaphores.data();
+  }
 
   std::vector<VkSemaphore> signalSemaphores = { mRenderData.rdRenderSemaphores[mImageIndex] };
 
@@ -6718,6 +6789,12 @@ bool VkRenderer::moveCamera(glm::vec3 amount) {
 
 void VkRenderer::setXRVisibilityMask(XRVisibilityMask visibilityMask) {
   for (int i = 0; i < 2; ++i) {
+    if (visibilityMask.indices.at(i).empty() || visibilityMask.vertices.at(i).vertices.empty()) {
+      mNumVisMaskTriangles.at(i) = 0;
+      Logger::log(1, "%s: visibility mask %i is empty, skipping buffer allocation\n", __FUNCTION__, i);
+      continue;
+    }
+
     VertexBuffer::init(mRenderData, mVisibilityMaskVertices.at(i), visibilityMask.vertices.at(i).vertices.size() * sizeof(VkSimpleVertex));
     VertexBuffer::uploadData(mRenderData, mVisibilityMaskVertices.at(i), visibilityMask.vertices.at(i).vertices);
 
@@ -6726,7 +6803,7 @@ void VkRenderer::setXRVisibilityMask(XRVisibilityMask visibilityMask) {
 
     mNumVisMaskTriangles.at(i) = visibilityMask.indices.at(i).size();
 
-    Logger::log(1, "%s: visibility mask %i will draw from %i triangles\n", __FUNCTION__, i, mNumVisMaskTriangles);
+    Logger::log(1, "%s: visibility mask %i will draw from %i triangles\n", __FUNCTION__, i, mNumVisMaskTriangles.at(i));
   }
 }
 
@@ -6740,6 +6817,9 @@ void VkRenderer::drawXRVisibilityMask() {
     mRenderData.rdLinePipelineLayout, 0, 1, &mRenderData.rdGroundMeshDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
 
   for (uint32_t layer = 0; layer < 2; layer++) {
+    if (mNumVisMaskTriangles.at(layer) == 0) {
+      continue;
+    }
     mRenderData.rdModelData.pkVirtMaskLayer = layer;
     vkCmdPushConstants(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), mRenderData.rdLinePipelineLayout,
     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(sizeof(VkPushConstants)), &mRenderData.rdModelData);
@@ -6789,7 +6869,7 @@ bool VkRenderer::copyToXRSwapchain(VkImageView imageView) {
   swapchainCopyRenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
   swapchainCopyRenderInfo.renderArea = swapchainRenderArea;
   swapchainCopyRenderInfo.layerCount = 2;
-  swapchainCopyRenderInfo.viewMask = 0b00000011;
+  swapchainCopyRenderInfo.viewMask = kXRPipelineViewMask;
   swapchainCopyRenderInfo.colorAttachmentCount = static_cast<uint32_t>(swapchainCopyAttachmentInfos.size());
   swapchainCopyRenderInfo.pColorAttachments = swapchainCopyAttachmentInfos.data();
 
@@ -6814,9 +6894,13 @@ bool VkRenderer::checkForSelection() {
       // wait for queue to be idle
       vkQueueWaitIdle(mRenderData.rdGraphicsQueue);
 
+#if !defined(__ANDROID__)
       float xScale, yScale;
       glfwGetWindowContentScale(mRenderData.rdWindow, &xScale, &yScale);
       float selectedInstanceId = VkHelper::getPixelValueFromPos(mRenderData, mRenderData.rdSelectionImageData.image, mMouseXPos * xScale, mMouseYPos * yScale);
+#else
+      float selectedInstanceId = VkHelper::getPixelValueFromPos(mRenderData, mRenderData.rdSelectionImageData.image, static_cast<float>(mMouseXPos), static_cast<float>(mMouseYPos));
+#endif
 
       mModelInstCamData.micSelectedInstance = 0;
       mModelInstCamData.micSelectedDynLight = 0;
@@ -6841,6 +6925,10 @@ bool VkRenderer::checkForSelection() {
 }
 
 bool VkRenderer::presentDesktopImage() {
+  if (mRenderData.rdSkipDesktopMirror) {
+    return true;
+  }
+
   // trigger swapchain image presentation
   VkPresentInfoKHR presentInfo{};
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -6905,11 +6993,27 @@ void VkRenderer::cleanup() {
   mLHandVRControllerModel->cleanup(mRenderData);
   mLightModel->cleanup(mRenderData);
 
+#if !defined(__ANDROID__)
   mUserInterface.cleanup(mRenderData);
+#endif
 
   VkHelper::cleanupSSAONoiseTexture(mRenderData);
 
   VkHelper::cleanup(mRenderData);
 }
+
+#if defined(__ANDROID__)
+void VkRenderer::setXRContext(uintptr_t instanceHandle, uint64_t systemId) {
+  mRenderData.rdXRInstanceHandle = instanceHandle;
+  mRenderData.rdXRSystemId = systemId;
+}
+
+bool VkRenderer::createVulkanPipelines() {
+  if (!VkHelper::createPipelines(mRenderData)) {
+    return false;
+  }
+  return true;
+}
+#endif
 
 

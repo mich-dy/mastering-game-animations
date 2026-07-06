@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec4 aPos; // last float is uv.x :)
 layout (location = 1) in vec4 aColor;
@@ -65,7 +65,7 @@ void main() {
   vec4 origVertex = vec4(aPos.xyz, 1.0);
   vec4 morphVertex = vec4(morphVertices[gl_VertexIndex + morphAnimIndex].position.xyz, 1.0);
 
-  gl_Position = projectionMat[gl_ViewIndex] * viewMat[gl_ViewIndex] * worldPosSkinMat *
+  gl_Position = projectionMat[XR_VIEW_INDEX] * viewMat[XR_VIEW_INDEX] * worldPosSkinMat *
     mix(origVertex, morphVertex, vertsPerMorphAnim[gl_InstanceIndex + worldPosOffset].x);
 
   /* draw the instance always on top when highlighted, helps to find it better */

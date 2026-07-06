@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec2 inUV;
 
@@ -30,10 +30,10 @@ layout (std140, set = 0, binding = 0) uniform Matrices {
 };
 
 vec3 getWorldPosFromDepth(vec2 uv) {
-  float depth = texture(ssaoInputDepth, vec3(uv, float(gl_ViewIndex))).r;
+  float depth = texture(ssaoInputDepth, vec3(uv, float(XR_VIEW_INDEX))).r;
   vec2 xy = uv * 2.0 - 1.0;
   vec4 pos = vec4(xy, depth, 1.0);
-  pos = invProjectionMat[gl_ViewIndex] * pos;
+  pos = invProjectionMat[XR_VIEW_INDEX] * pos;
   pos.xyz /= pos.w;
 
   return pos.xyz;
@@ -42,14 +42,14 @@ vec3 getWorldPosFromDepth(vec2 uv) {
 void main() {
   /* just copy the pixels */
   if (ssaoBlurEnabled == 0) {
-    outColor = texture(ssaoColor, vec3(inUV, float(gl_ViewIndex))).r;
+    outColor = texture(ssaoColor, vec3(inUV, float(XR_VIEW_INDEX))).r;
     return;
   }
 
   vec2 texelSize = 1.0 / vec2(textureSize(ssaoColor, 0));
 
   float depth = getWorldPosFromDepth(inUV).z;
-  vec3 normal = (viewMat[gl_ViewIndex] * vec4(normalize(texture(ssaoInputNormal, vec3(inUV, float(gl_ViewIndex))).rgb * 2.0 - 1.0), 0.0)).xyz;
+  vec3 normal = (viewMat[XR_VIEW_INDEX] * vec4(normalize(texture(ssaoInputNormal, vec3(inUV, float(XR_VIEW_INDEX))).rgb * 2.0 - 1.0), 0.0)).xyz;
 
   float result = 0.0;
   int sampleCount = 0;
@@ -58,11 +58,11 @@ void main() {
       vec2 offset = vec2(float(x), float(y)) * texelSize;
 
       float offsetDepth = getWorldPosFromDepth(inUV + offset).z;
-      vec3 offsetNormal = (viewMat[gl_ViewIndex] * vec4(normalize(texture(ssaoInputNormal, vec3(inUV + offset, float(gl_ViewIndex))).rgb * 2.0 - 1.0), 0.0)).xyz;
+      vec3 offsetNormal = (viewMat[XR_VIEW_INDEX] * vec4(normalize(texture(ssaoInputNormal, vec3(inUV + offset, float(XR_VIEW_INDEX))).rgb * 2.0 - 1.0), 0.0)).xyz;
 
       /* sharper edges */
       if (abs(depth - offsetDepth) < 0.2 && dot(normal, offsetNormal) > 0.85) {
-        result += texture(ssaoColor, vec3(inUV + offset, float(gl_ViewIndex))).r;
+        result += texture(ssaoColor, vec3(inUV + offset, float(XR_VIEW_INDEX))).r;
         ++sampleCount;
       }
     }

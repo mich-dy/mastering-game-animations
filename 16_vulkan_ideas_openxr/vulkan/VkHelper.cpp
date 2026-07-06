@@ -1,5 +1,14 @@
 #include <VkHelper.h>
 
+#if defined(__ANDROID__)
+#include <jni.h>
+#define XR_USE_GRAPHICS_API_VULKAN
+#define XR_USE_PLATFORM_ANDROID
+#include <openxr/openxr.h>
+#include <openxr/openxr_platform.h>
+#endif
+
+#include <algorithm>
 #include <random>
 #include <glm/gtx/string_cast.hpp>
 
@@ -124,9 +133,11 @@ bool VkHelper::initVulkan(VkRenderData& renderData) {
     return false;
   }
 
+#if !defined(__ANDROID__)
   if (!createPipelines(renderData)) {
     return false;
   }
+#endif
 
   if (!createSyncObjects(renderData)) {
     return false;
@@ -135,17 +146,222 @@ bool VkHelper::initVulkan(VkRenderData& renderData) {
   return true;
 }
 
+#if defined(__ANDROID__)
+struct AndroidVulkanDeviceFeatures {
+  VkPhysicalDeviceFeatures2 features2{};
+  VkPhysicalDeviceVulkan13Features vk13{};
+  VkPhysicalDeviceVulkan12Features vk12{};
+  VkPhysicalDeviceVulkan11Features vk11{};
+  VkPhysicalDeviceExtendedDynamicState3FeaturesEXT dynState3{};
+};
+
+static bool populateAndroidXRPhysicalDevice(VkRenderData& renderData, VkPhysicalDevice xrPhysDevice,
+  const VkPhysicalDeviceFeatures &vk10features,
+  const VkPhysicalDeviceVulkan11Features &vk11features,
+  const VkPhysicalDeviceVulkan12Features &vk12features,
+  const VkPhysicalDeviceDynamicRenderingFeaturesKHR &dynamicRenderingFeature,
+  const VkPhysicalDeviceExtendedDynamicState3FeaturesEXT &dynState3Feature,
+  AndroidVulkanDeviceFeatures &outFeatures) {
+  (void)dynamicRenderingFeature;
+
+  vkb::PhysicalDeviceSelector bareSelector(renderData.rdVkbInstance);
+  auto allDevicesRet = bareSelector
+    .require_present(false)
+    .select_devices(vkb::DeviceSelectionMode::partially_and_fully_suitable);
+  if (!allDevicesRet) {
+    Logger::log(1, "%s error: could not enumerate Vulkan physical devices\n", __FUNCTION__);
+    return false;
+  }
+
+  bool foundDevice = false;
+  for (const auto &candidate : allDevicesRet.value()) {
+    if (candidate.physical_device == xrPhysDevice) {
+      renderData.rdVkbPhysicalDevice = candidate;
+      foundDevice = true;
+      break;
+    }
+  }
+
+  if (!foundDevice) {
+    Logger::log(1, "%s error: OpenXR Vulkan device not found among %zu devices\n", __FUNCTION__, allDevicesRet.value().size());
+    return false;
+  }
+
+  renderData.rdVkbPhysicalDevice.enable_features_if_present(vk10features);
+  renderData.rdVkbPhysicalDevice.enable_extension_if_present(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+  for (const auto &xrExtension : renderData.rdXRDeviceExtensions) {
+    renderData.rdVkbPhysicalDevice.enable_extension_if_present(xrExtension);
+  }
+
+  (void)vk12features;
+
+  outFeatures.vk11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+  outFeatures.vk12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+  outFeatures.vk13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+  outFeatures.dynState3.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT;
+  outFeatures.vk13.pNext = &outFeatures.vk12;
+  outFeatures.vk12.pNext = &outFeatures.vk11;
+  if (renderData.rdVkbPhysicalDevice.is_extension_present(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME)) {
+    outFeatures.vk11.pNext = &outFeatures.dynState3;
+  } else {
+    outFeatures.vk11.pNext = nullptr;
+  }
+  outFeatures.features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+  outFeatures.features2.pNext = &outFeatures.vk13;
+
+  vkGetPhysicalDeviceFeatures2(renderData.rdVkbPhysicalDevice.physical_device, &outFeatures.features2);
+  outFeatures.features2.features = renderData.rdVkbPhysicalDevice.features;
+
+#if !defined(__ANDROID__)
+  if (vk11features.multiview && outFeatures.vk11.multiview != VK_TRUE) {
+    Logger::log(1, "%s error: multiview not supported on '%s'\n", __FUNCTION__, renderData.rdVkbPhysicalDevice.name.c_str());
+    return false;
+  }
+  outFeatures.vk11.multiview = VK_TRUE;
+#else
+  outFeatures.vk11.multiview = VK_FALSE;
+#endif
+  if (outFeatures.vk13.dynamicRendering != VK_TRUE) {
+    Logger::log(1, "%s error: dynamicRendering not supported on '%s'\n", __FUNCTION__, renderData.rdVkbPhysicalDevice.name.c_str());
+    return false;
+  }
+  outFeatures.vk13.dynamicRendering = VK_TRUE;
+  outFeatures.vk13.synchronization2 = VK_TRUE;
+  if (vk12features.timelineSemaphore && outFeatures.vk12.timelineSemaphore == VK_TRUE) {
+    outFeatures.vk12.timelineSemaphore = VK_TRUE;
+  }
+  outFeatures.vk12.shaderOutputViewportIndex = VK_FALSE;
+  outFeatures.vk12.shaderOutputLayer = VK_FALSE;
+
+  bool dynState3Enabled = false;
+  if (renderData.rdVkbPhysicalDevice.is_extension_present(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME) &&
+      dynState3Feature.extendedDynamicState3ColorBlendEquation == VK_TRUE &&
+      outFeatures.dynState3.extendedDynamicState3ColorBlendEquation == VK_TRUE) {
+    outFeatures.dynState3.extendedDynamicState3ColorBlendEquation = VK_TRUE;
+    dynState3Enabled = true;
+  }
+  if (renderData.rdVkbPhysicalDevice.is_extension_present(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME) &&
+      dynState3Feature.extendedDynamicState3ColorBlendEnable == VK_TRUE &&
+      outFeatures.dynState3.extendedDynamicState3ColorBlendEnable == VK_TRUE) {
+    outFeatures.dynState3.extendedDynamicState3ColorBlendEnable = VK_TRUE;
+    dynState3Enabled = true;
+  }
+  if (dynState3Enabled) {
+    outFeatures.vk11.pNext = &outFeatures.dynState3;
+    renderData.rdVkbPhysicalDevice.enable_extension_if_present(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
+  } else {
+    outFeatures.vk11.pNext = nullptr;
+  }
+
+  Logger::log(1, "%s: prepared multiview=%i dynamicRendering=%i dynState3Blend=%i on '%s'\n", __FUNCTION__,
+    outFeatures.vk11.multiview, outFeatures.vk13.dynamicRendering,
+    outFeatures.dynState3.extendedDynamicState3ColorBlendEnable, renderData.rdVkbPhysicalDevice.name.c_str());
+  return true;
+}
+
+static uint32_t getQueueFamilyIndex(const std::vector<VkQueueFamilyProperties> &families, VkQueueFlags requiredFlags) {
+  for (uint32_t i = 0; i < families.size(); ++i) {
+    if ((families.at(i).queueFlags & requiredFlags) == requiredFlags) {
+      return i;
+    }
+  }
+  return UINT32_MAX;
+}
+
+static bool createAndroidXRVulkanDevice(VkRenderData& renderData, AndroidVulkanDeviceFeatures& androidFeatures) {
+  auto xrInstance = reinterpret_cast<XrInstance>(renderData.rdXRInstanceHandle);
+
+  PFN_xrCreateVulkanDeviceKHR xrCreateVulkanDeviceKHR = nullptr;
+  XrResult xrResult = xrGetInstanceProcAddr(xrInstance, "xrCreateVulkanDeviceKHR",
+    reinterpret_cast<PFN_xrVoidFunction *>(&xrCreateVulkanDeviceKHR));
+  if (xrResult != XR_SUCCESS || xrCreateVulkanDeviceKHR == nullptr) {
+    Logger::log(1, "%s: xrCreateVulkanDeviceKHR unavailable, using vkCreateDevice\n", __FUNCTION__);
+    return false;
+  }
+
+  const auto queueFamilies = renderData.rdVkbPhysicalDevice.get_queue_families();
+  const uint32_t graphicsFamily = getQueueFamilyIndex(queueFamilies, VK_QUEUE_GRAPHICS_BIT);
+  if (graphicsFamily == UINT32_MAX) {
+    Logger::log(1, "%s error: no graphics queue family for OpenXR Vulkan device\n", __FUNCTION__);
+    return false;
+  }
+
+  float graphicsPriority = 1.0f;
+  VkDeviceQueueCreateInfo graphicsQueueCreateInfo{};
+  graphicsQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+  graphicsQueueCreateInfo.queueFamilyIndex = graphicsFamily;
+  graphicsQueueCreateInfo.queueCount = 1;
+  graphicsQueueCreateInfo.pQueuePriorities = &graphicsPriority;
+  std::vector<VkDeviceQueueCreateInfo> queueCreateInfos = { graphicsQueueCreateInfo };
+
+  const auto deviceExtensions = renderData.rdVkbPhysicalDevice.get_extensions();
+  std::vector<const char *> enabledExtensions;
+  for (const auto &extension : deviceExtensions) {
+    enabledExtensions.push_back(extension.c_str());
+  }
+
+  VkDeviceCreateInfo deviceCreateInfo{};
+  deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+  deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+  deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
+  deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
+  deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+  deviceCreateInfo.pNext = &androidFeatures.features2;
+
+  XrVulkanDeviceCreateInfoKHR xrDeviceCreateInfo{};
+  xrDeviceCreateInfo.type = XR_TYPE_VULKAN_DEVICE_CREATE_INFO_KHR;
+  xrDeviceCreateInfo.systemId = static_cast<XrSystemId>(renderData.rdXRSystemId);
+  xrDeviceCreateInfo.pfnGetInstanceProcAddr = vkGetInstanceProcAddr;
+  xrDeviceCreateInfo.vulkanPhysicalDevice = renderData.rdVkbPhysicalDevice.physical_device;
+  xrDeviceCreateInfo.vulkanCreateInfo = &deviceCreateInfo;
+
+  VkDevice vkDevice = VK_NULL_HANDLE;
+  VkResult vkResult = VK_SUCCESS;
+  xrResult = xrCreateVulkanDeviceKHR(xrInstance, &xrDeviceCreateInfo, &vkDevice, &vkResult);
+  if (xrResult != XR_SUCCESS || vkResult != VK_SUCCESS) {
+    Logger::log(1, "%s error: xrCreateVulkanDeviceKHR failed (xr=%i, vk=%i)\n", __FUNCTION__, xrResult, vkResult);
+    return false;
+  }
+
+  auto *beginRendering = vkGetDeviceProcAddr(vkDevice, "vkCmdBeginRendering");
+  if (beginRendering == nullptr) {
+    Logger::log(1, "%s error: xrCreateVulkanDevice device lacks vkCmdBeginRendering, destroying device\n", __FUNCTION__);
+    vkDestroyDevice(vkDevice, nullptr);
+    return false;
+  }
+
+  renderData.rdVkbDevice.device = vkDevice;
+  renderData.rdVkbDevice.physical_device = renderData.rdVkbPhysicalDevice;
+  renderData.rdVkbDevice.queue_families = queueFamilies;
+  renderData.rdVkbDevice.fp_vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+  renderData.rdVkbDevice.instance_version = VK_API_VERSION_1_3;
+  Logger::log(1, "%s: OpenXR Vulkan device created via xrCreateVulkanDeviceKHR\n", __FUNCTION__);
+  return true;
+}
+
+#endif
+
 bool VkHelper::deviceInit(VkRenderData& renderData) {
   /* instance and window - we need at least Vukan 1.3 for dynamic rendering */
   vkb::InstanceBuilder instBuild;
-  auto instRet = instBuild
+  auto instBuilder = instBuild
+  .enable_extensions(renderData.rdXRInstanceExtensions)
+  .require_api_version(1, 3, 0);
+
+#if !defined(__ANDROID__)
+  instBuilder = instBuilder
   .use_default_debug_messenger()
   .request_validation_layers()
   .enable_extension(VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME) // required to use VK_EXT_swapchain_maintenance1
-  .enable_extension(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME) // required to use VK_EXT_surface_maintenance1
-  .enable_extensions(renderData.rdXRInstanceExtensions)
-  .require_api_version(1, 3, 0)
-  .build();
+  .enable_extension(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME); // required to use VK_EXT_surface_maintenance1
+#else
+  instBuilder = instBuilder
+    .set_headless()
+    .request_validation_layers()
+    .use_default_debug_messenger();
+#endif
+
+  auto instRet = instBuilder.build();
 
   if (!instRet) {
     Logger::log(1, "%s error: could not build vkb instance\n", __FUNCTION__);
@@ -153,11 +369,15 @@ bool VkHelper::deviceInit(VkRenderData& renderData) {
   }
   renderData.rdVkbInstance = instRet.value();
 
+#if !defined(__ANDROID__)
   VkResult result = glfwCreateWindowSurface(renderData.rdVkbInstance, renderData.rdWindow, nullptr, &renderData.rdSurface);
   if (result != VK_SUCCESS) {
     Logger::log(1, "%s error: Could not create Vulkan surface (error: %i)\n", __FUNCTION__);
     return false;
   }
+#else
+  renderData.rdSkipDesktopMirror = true;
+#endif
 
   // enable dynamic rendering
   VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeature{};
@@ -176,22 +396,30 @@ bool VkHelper::deviceInit(VkRenderData& renderData) {
   // force anisotropy and line width
   VkPhysicalDeviceFeatures vk10features{};
   vk10features.samplerAnisotropy = VK_TRUE;
+#if !defined(__ANDROID__)
   vk10features.wideLines = VK_TRUE;
+#endif
   vk10features.imageCubeArray = VK_TRUE;
+#if !defined(__ANDROID__)
   vk10features.multiViewport = VK_TRUE; // required for GL_ARB_shader_viewport_layer_array
   vk10features.geometryShader = VK_TRUE; // seem to be required by latest STEAM update
+#endif
 
   VkPhysicalDeviceVulkan11Features vk11features{};
+#if !defined(__ANDROID__)
   vk11features.multiview = VK_TRUE;
+#endif
 
   VkPhysicalDeviceVulkan12Features vk12features{};
   vk12features.timelineSemaphore = VK_TRUE;
+#if !defined(__ANDROID__)
   // required from Vulkan to enable when VK_EXT_SHADER_VIEWPORT_INDEX_LAYER_EXTENSION_NAME is enabled
   vk12features.shaderOutputViewportIndex = VK_TRUE;
   vk12features.shaderOutputLayer = VK_TRUE;
+#endif
 
-  // just get the first available device
   vkb::PhysicalDeviceSelector physicalDevSel{renderData.rdVkbInstance};
+#if !defined(__ANDROID__)
   auto physicalDevSelRet = physicalDevSel
   .set_surface(renderData.rdSurface)
   .set_required_features(vk10features)
@@ -205,28 +433,76 @@ bool VkHelper::deviceInit(VkRenderData& renderData) {
   .add_required_extension_features(dynState3Feature)
   .add_required_extensions(renderData.rdXRDeviceExtensions)
   .select();
+#else
+  VkPhysicalDevice xrPhysDevice = VK_NULL_HANDLE;
+  if (renderData.rdXRInstanceHandle != 0 && renderData.rdXRSystemId != 0) {
+    auto xrInstance = reinterpret_cast<XrInstance>(renderData.rdXRInstanceHandle);
+    PFN_xrGetVulkanGraphicsDeviceKHR xrGetVulkanGraphicsDeviceKHR = nullptr;
+    XrResult xrResult = xrGetInstanceProcAddr(xrInstance, "xrGetVulkanGraphicsDeviceKHR",
+      reinterpret_cast<PFN_xrVoidFunction *>(&xrGetVulkanGraphicsDeviceKHR));
+    if (xrResult == XR_SUCCESS && xrGetVulkanGraphicsDeviceKHR != nullptr) {
+      xrResult = xrGetVulkanGraphicsDeviceKHR(xrInstance, static_cast<XrSystemId>(renderData.rdXRSystemId),
+        renderData.rdVkbInstance.instance, &xrPhysDevice);
+      if (xrResult != XR_SUCCESS) {
+        Logger::log(1, "%s error: xrGetVulkanGraphicsDeviceKHR failed (%i)\n", __FUNCTION__, xrResult);
+        return false;
+      }
+    } else {
+      Logger::log(1, "%s error: xrGetVulkanGraphicsDeviceKHR unavailable\n", __FUNCTION__);
+      return false;
+    }
+  } else {
+    Logger::log(1, "%s error: OpenXR instance/system not set for Android Vulkan init\n", __FUNCTION__);
+    return false;
+  }
 
+  AndroidVulkanDeviceFeatures androidFeatures{};
+  if (!populateAndroidXRPhysicalDevice(renderData, xrPhysDevice, vk10features, vk11features, vk12features,
+    dynamicRenderingFeature, dynState3Feature, androidFeatures)) {
+    Logger::log(1, "%s error: could not populate Android XR physical device\n", __FUNCTION__);
+    return false;
+  }
+#endif
+
+#if !defined(__ANDROID__)
   if (!physicalDevSelRet) {
     Logger::log(1, "%s error: could not get physical devices\n", __FUNCTION__);
     return false;
   }
 
   renderData.rdVkbPhysicalDevice = physicalDevSelRet.value();
+#endif
   Logger::log(1, "%s: found physical device '%s'\n", __FUNCTION__, renderData.rdVkbPhysicalDevice.name.c_str());
-
   /* required for dynamic buffer with world position matrices */
   VkDeviceSize minSSBOOffsetAlignment = renderData.rdVkbPhysicalDevice.properties.limits.minStorageBufferOffsetAlignment;
   Logger::log(1, "%s: the physical device has a minimal SSBO offset of %i bytes\n", __FUNCTION__, minSSBOOffsetAlignment);
   renderData.rdMinSSBOOffsetAlignment = std::max(minSSBOOffsetAlignment, sizeof(glm::mat4));
   Logger::log(1, "%s: SSBO offset has been adjusted to %i bytes\n", __FUNCTION__, renderData.rdMinSSBOOffsetAlignment);
 
+#if defined(__ANDROID__)
+  if (!createAndroidXRVulkanDevice(renderData, androidFeatures)) {
+    vkb::DeviceBuilder devBuilder{renderData.rdVkbPhysicalDevice};
+    const uint32_t graphicsFamily =
+      getQueueFamilyIndex(renderData.rdVkbPhysicalDevice.get_queue_families(), VK_QUEUE_GRAPHICS_BIT);
+    if (graphicsFamily != UINT32_MAX) {
+      devBuilder.custom_queue_setup({ vkb::CustomQueueDescription(graphicsFamily, {1.0f}) });
+    }
+    auto devBuilderRet = devBuilder.add_pNext(&androidFeatures.features2).build();
+    if (!devBuilderRet) {
+      Logger::log(1, "%s error: could not get devices (vk result %i)\n", __FUNCTION__, devBuilderRet.vk_result());
+      return false;
+    }
+    renderData.rdVkbDevice = devBuilderRet.value();
+  }
+#else
   vkb::DeviceBuilder devBuilder{renderData.rdVkbPhysicalDevice};
   auto devBuilderRet = devBuilder.build();
   if (!devBuilderRet) {
-    Logger::log(1, "%s error: could not get devices\n", __FUNCTION__);
+    Logger::log(1, "%s error: could not get devices (vk result %i)\n", __FUNCTION__, devBuilderRet.vk_result());
     return false;
   }
   renderData.rdVkbDevice = devBuilderRet.value();
+#endif
 
   // not found in my loader, need to get from library xD
   renderData.rdvkCmdSetColorBlendEnableEXT = reinterpret_cast<PFN_vkCmdSetColorBlendEnableEXT>(vkGetDeviceProcAddr(renderData.rdVkbDevice.device, "vkCmdSetColorBlendEnableEXT"));
@@ -251,6 +527,19 @@ bool VkHelper::initVma(VkRenderData& renderData) {
 }
 
 bool VkHelper::getQueues(VkRenderData& renderData) {
+#if defined(__ANDROID__)
+  const auto &queueFamilies = renderData.rdVkbDevice.queue_families;
+  const uint32_t graphicsFamily = getQueueFamilyIndex(queueFamilies, VK_QUEUE_GRAPHICS_BIT);
+  if (graphicsFamily == UINT32_MAX) {
+    Logger::log(1, "%s error: could not get graphics queue family\n", __FUNCTION__);
+    return false;
+  }
+  vkGetDeviceQueue(renderData.rdVkbDevice.device, graphicsFamily, 0, &renderData.rdGraphicsQueue);
+  renderData.rdPresentQueue = renderData.rdGraphicsQueue;
+  renderData.rdComputeQueue = renderData.rdGraphicsQueue;
+  renderData.rdHasDedicatedComputeQueue = false;
+  Logger::log(1, "%s: Android XR using shared graphics/compute/present queue\n", __FUNCTION__);
+#else
   auto graphQueueRet = renderData.rdVkbDevice.get_queue(vkb::QueueType::graphics);
   if (!graphQueueRet.has_value()) {
     Logger::log(1, "%s error: could not get graphics queue\n", __FUNCTION__);
@@ -258,12 +547,16 @@ bool VkHelper::getQueues(VkRenderData& renderData) {
   }
   renderData.rdGraphicsQueue = graphQueueRet.value();
 
-  auto presentQueueRet = renderData.rdVkbDevice.get_queue(vkb::QueueType::present);
-  if (!presentQueueRet.has_value()) {
-    Logger::log(1, "%s error: could not get present queue\n", __FUNCTION__);
-    return false;
+  if (renderData.rdSkipDesktopMirror) {
+    renderData.rdPresentQueue = renderData.rdGraphicsQueue;
+  } else {
+    auto presentQueueRet = renderData.rdVkbDevice.get_queue(vkb::QueueType::present);
+    if (!presentQueueRet.has_value()) {
+      Logger::log(1, "%s error: could not get present queue\n", __FUNCTION__);
+      return false;
+    }
+    renderData.rdPresentQueue = presentQueueRet.value();
   }
-  renderData.rdPresentQueue = presentQueueRet.value();
 
   auto computeQueueRet = renderData.rdVkbDevice.get_queue(vkb::QueueType::compute);
   if (!computeQueueRet.has_value()) {
@@ -275,11 +568,28 @@ bool VkHelper::getQueues(VkRenderData& renderData) {
     renderData.rdComputeQueue = computeQueueRet.value();
     renderData.rdHasDedicatedComputeQueue = true;
   }
+#endif
 
   return true;
 }
 
 bool VkHelper::createSwapchain(VkRenderData& renderData) {
+#if defined(__ANDROID__)
+  if (renderData.rdSkipDesktopMirror) {
+    renderData.rdWidth = renderData.rdXRWidth > 0 ? renderData.rdXRWidth : 1920;
+    renderData.rdHalfWidth = renderData.rdWidth / 2;
+    renderData.rdHeight = renderData.rdXRHeight > 0 ? renderData.rdXRHeight : 1080;
+    renderData.rdWindowWidth = static_cast<int>(renderData.rdWidth);
+    renderData.rdWindowHeight = static_cast<int>(renderData.rdHeight);
+    renderData.rdNumFramesInFlight = renderData.MAX_FRAMES_IN_FLIGHT;
+    renderData.rdVkbSwapchain.image_format = VK_FORMAT_B8G8R8A8_UNORM;
+    Logger::log(1, "%s: Android XR headless mode %ix%i, %i frames in flight\n", __FUNCTION__,
+      renderData.rdWidth, renderData.rdHeight, renderData.rdNumFramesInFlight);
+    return true;
+  }
+#endif
+
+#if !defined(__ANDROID__)
   vkb::SwapchainBuilder swapChainBuild{renderData.rdVkbDevice};
   VkSurfaceFormatKHR surfaceFormat;
 
@@ -329,9 +639,15 @@ bool VkHelper::createSwapchain(VkRenderData& renderData) {
   Logger::log(1, "%s: Swapchain requested %i images, got %i\n", __FUNCTION__, renderData.MAX_FRAMES_IN_FLIGHT, renderData.rdNumFramesInFlight);
 
   return true;
+#endif
 }
 
 bool VkHelper::recreateSwapchain(VkRenderData& renderData) {
+#if defined(__ANDROID__)
+  if (renderData.rdSkipDesktopMirror) {
+    return true;
+  }
+#endif
   Logger::log(1, "%s: recreate swapchain\n", __FUNCTION__);
 
   int screenWidth = 0;
@@ -339,10 +655,14 @@ bool VkHelper::recreateSwapchain(VkRenderData& renderData) {
 
   // handle minimize
   while (renderData.rdWidth == 0 || renderData.rdHeight == 0) {
+#if !defined(__ANDROID__)
     glfwGetFramebufferSize(renderData.rdWindow, &screenWidth, &screenHeight);
     renderData.rdWidth = screenWidth;
     renderData.rdHeight = screenHeight;
     glfwWaitEvents();
+#else
+    break;
+#endif
   }
 
   vkDeviceWaitIdle(renderData.rdVkbDevice.device);
@@ -3744,12 +4064,16 @@ bool VkHelper::createPipelineLayouts(VkRenderData& renderData) {
 }
 
 bool VkHelper::createPipelines(VkRenderData& renderData) {
-  std::vector<VkFormat> assimpAttachmentFormats {
+  std::vector<VkFormat> assimpGBufferAttachmentFormats {
     renderData.rdGBuffer.color.format,
     renderData.rdGBuffer.depth.format,
     renderData.rdGBuffer.normal.format,
-    renderData.rdSelectionImageData.format,
   };
+  std::vector<VkFormat> assimpAttachmentFormats = assimpGBufferAttachmentFormats;
+  assimpAttachmentFormats.push_back(renderData.rdSelectionImageData.format);
+#if defined(__ANDROID__)
+  (void)assimpGBufferAttachmentFormats;
+#endif
 
   std::vector<VkFormat> ssaoAttachmentFormats {
     renderData.rdSSAOColorBufferData.format,
@@ -3779,7 +4103,12 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
 
   std::string vertexShaderFile = "shader/assimp.vert.spv";
   std::string fragmentShaderFile = "shader/assimp.frag.spv";
-  if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpPipelineLayout,
+#if defined(__ANDROID__)
+  const auto &assimpBaseFormats = assimpGBufferAttachmentFormats;
+#else
+  const auto &assimpBaseFormats = assimpAttachmentFormats;
+#endif
+  if (!ModelLevelPipeline::init(renderData, assimpBaseFormats, renderData.rdAssimpPipelineLayout,
       renderData.rdAssimpPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp shader pipeline\n", __FUNCTION__);
     return false;
@@ -3787,7 +4116,7 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
 
   vertexShaderFile = "shader/assimp_skinning.vert.spv";
   fragmentShaderFile = "shader/assimp_skinning.frag.spv";
-  if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpSkinningPipelineLayout,
+  if (!ModelLevelPipeline::init(renderData, assimpBaseFormats, renderData.rdAssimpSkinningPipelineLayout,
       renderData.rdAssimpSkinningPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Skinning shader pipeline\n", __FUNCTION__);
     return false;
@@ -3811,7 +4140,7 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
 
   vertexShaderFile = "shader/assimp_skinning_morph.vert.spv";
   fragmentShaderFile = "shader/assimp_skinning_morph.frag.spv";
-  if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpSkinningMorphPipelineLayout,
+  if (!ModelLevelPipeline::init(renderData, assimpBaseFormats, renderData.rdAssimpSkinningMorphPipelineLayout,
       renderData.rdAssimpSkinningMorphPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Morph Anim Skinning shader pipeline\n", __FUNCTION__);
     return false;
@@ -3828,7 +4157,7 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
 
   vertexShaderFile = "shader/assimp_level.vert.spv";
   fragmentShaderFile = "shader/assimp_level.frag.spv";
-  if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpLevelPipelineLayout,
+  if (!ModelLevelPipeline::init(renderData, assimpBaseFormats, renderData.rdAssimpLevelPipelineLayout,
       renderData.rdAssimpLevelPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Level shader pipeline\n", __FUNCTION__);
     return false;
@@ -4025,7 +4354,7 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
 
   vertexShaderFile = "shader/vr_controller.vert.spv";
   fragmentShaderFile = "shader/vr_controller.frag.spv";
-  if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdVRControllerPipelineLayout,
+  if (!ModelLevelPipeline::init(renderData, assimpBaseFormats, renderData.rdVRControllerPipelineLayout,
       renderData.rdVRControllerPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init VR Controller shader pipeline\n", __FUNCTION__);
     return false;
@@ -4078,6 +4407,9 @@ void VkHelper::destroyXRPipeline(VkRenderData& renderData) {
 }
 
 void VkHelper::enableBlending(VkRenderData& renderData, uint32_t attachmentCount) {
+  if (renderData.rdvkCmdSetColorBlendEquationEXT == nullptr || renderData.rdvkCmdSetColorBlendEnableEXT == nullptr) {
+    return;
+  }
 
   std::vector<VkColorBlendEquationEXT> blendEquations{};
   for (uint32_t i = 0; i < attachmentCount; ++i) {
@@ -4103,6 +4435,10 @@ void VkHelper::enableBlending(VkRenderData& renderData, uint32_t attachmentCount
 }
 
 void VkHelper::disableBlending(VkRenderData& renderData, uint32_t attachmentCount) {
+  if (renderData.rdvkCmdSetColorBlendEnableEXT == nullptr) {
+    return;
+  }
+
   std::vector<VkBool32> colorBlendEnable{};
   colorBlendEnable.resize(attachmentCount, VK_FALSE);
 
@@ -4626,9 +4962,10 @@ bool VkHelper::createGBuffer(VkRenderData& renderData) {
     xrExtent, 2)) {
     return false;
   }
-  Logger::log(1, "%s: create GBuffer depth attachment (1x 16 bit float)\n", __FUNCTION__);
+  Logger::log(1, "%s: create GBuffer depth attachment (1x 32 bit float)\n", __FUNCTION__);
+  const VkFormat gbufferDepthFormat = VK_FORMAT_R32_SFLOAT;
   if (!Image::create(renderData, renderData.rdGBuffer.depth,
-    VK_FORMAT_R32_SFLOAT,
+    gbufferDepthFormat,
     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
     xrExtent, 2)) {
     return false;
@@ -5407,8 +5744,15 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   renderData.rdVkbSwapchain.destroy_image_views(renderData.rdSwapchainImageViews);
   vkb::destroy_swapchain(renderData.rdVkbSwapchain);
 
+#if defined(__ANDROID__)
+  if (renderData.rdVkbDevice.device != VK_NULL_HANDLE) {
+    vkDestroyDevice(renderData.rdVkbDevice.device, nullptr);
+    renderData.rdVkbDevice.device = VK_NULL_HANDLE;
+  }
+#else
   vkb::destroy_device(renderData.rdVkbDevice);
   vkb::destroy_surface(renderData.rdVkbInstance.instance, renderData.rdSurface);
+#endif
   vkb::destroy_instance(renderData.rdVkbInstance);
 
   Logger::log(1, "%s: Vulkan renderer destroyed\n", __FUNCTION__);

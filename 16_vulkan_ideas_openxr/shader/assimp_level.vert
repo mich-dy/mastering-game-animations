@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec4 aPos; // last float is uv.x
 layout (location = 1) in vec4 aColor;
@@ -29,7 +29,7 @@ layout (std430, set = 1, binding = 1) readonly restrict buffer WorldTransformMat
 void main() {
   mat4 levelMat = worldTransformMat[worldPosOffset];
 
-  gl_Position = projectionMat[gl_ViewIndex] * viewMat[gl_ViewIndex] * levelMat * vec4(aPos.xyz, 1.0);
+  gl_Position = projectionMat[XR_VIEW_INDEX] * viewMat[XR_VIEW_INDEX] * levelMat * vec4(aPos.xyz, 1.0);
 
   normal = transpose(inverse(mat3(levelMat))) * aNormal.xyz;
 

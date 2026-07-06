@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec4 aPos; // last float is uv.x
 layout (location = 1) in vec4 aColor;
@@ -37,5 +37,5 @@ layout (std430, set = 1, binding = 2) readonly restrict buffer ShadowMapCascadeP
 
 void main() {
   mat4 levelMat = worldTransformMat[worldPosOffset];
-  gl_Position = shadowMapData[shadowMapLayerIndex + gl_ViewIndex].shadowMapMat * levelMat * vec4(aPos.xyz, 1.0);
+  gl_Position = shadowMapData[shadowMapLayerIndex + XR_VIEW_INDEX].shadowMapMat * levelMat * vec4(aPos.xyz, 1.0);
 }

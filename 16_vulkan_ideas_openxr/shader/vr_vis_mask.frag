@@ -1,5 +1,5 @@
 #version 460 core
-#extension GL_EXT_multiview : enable
+#include "xr_view.glsl"
 
 layout (location = 0) in vec4 color;
 
@@ -31,7 +31,7 @@ float linearDepth(float depth) {
 }
 
 void main() {
-  if (gl_ViewIndex != virtMaskLayer) {
+  if (XR_VIEW_INDEX != virtMaskLayer) {
     discard;
   }
 

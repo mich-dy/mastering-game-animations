@@ -15,7 +15,9 @@
 
 // Vulkan also before GLFW
 #include <vulkan/vulkan.h>
+#if !defined(__ANDROID__)
 #include <GLFW/glfw3.h>
+#endif
 
 #include <VkBootstrap.h>
 #include <vk_mem_alloc.h>
@@ -58,7 +60,13 @@
 
 class VkRenderer {
   public:
+#if defined(__ANDROID__)
+    bool init(void *window, std::vector<std::string> &deviceExtForXR, std::vector<std::string> &instExtsForXR);
+    void setXRContext(uintptr_t instanceHandle, uint64_t systemId);
+    bool createVulkanPipelines();
+#else
     bool init(GLFWwindow *window, std::vector<std::string> &deviceExtForXR, std::vector<std::string> &instExtsForXR);
+#endif
     void setSize(unsigned int width, unsigned int height);
 
     VkDevice getDevice();

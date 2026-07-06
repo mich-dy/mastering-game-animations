@@ -4,7 +4,11 @@
 #include <string>
 #include <tuple>
 
-#if defined(WIN32)
+#if defined(__ANDROID__)
+#include <jni.h>
+#define XR_USE_PLATFORM_ANDROID
+#define VK_USE_PLATFORM_ANDROID_KHR
+#elif defined(WIN32)
 #define VK_USE_PLATFORM_WIN32_KHR
 #else
 #define VK_USE_PLATFORM_XLIB_KHR
@@ -14,7 +18,9 @@
 // include Vulkan before GLFW
 #include <vulkan/vulkan.h>
 
+#if !defined(__ANDROID__)
 #include <GLFW/glfw3.h>
+#endif
 
 // Define any XR_USE_PLATFORM_... / XR_USE_GRAPHICS_API_... before this header file.
 #include <openxr/openxr.h>
@@ -26,7 +32,11 @@
 
 class VRHeadset {
   public:
+#if defined(__ANDROID__)
+    bool init(void *window, ModelInstanceCamCallbacks callbacks);
+#else
     bool init(GLFWwindow *window, ModelInstanceCamCallbacks callbacks);
+#endif
 
     std::shared_ptr<VkRenderer> getVulkanRenderer();
 
@@ -177,4 +187,10 @@ class VRHeadset {
     XrDebugUtilsMessengerEXT mDebugMessenger{};
     static XrBool32 handleXRErrors(XrDebugUtilsMessageSeverityFlagsEXT severity, XrDebugUtilsMessageTypeFlagsEXT type,
       const XrDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData);
+
+#if defined(__ANDROID__)
+    bool initializeAndroidLoader();
+    JavaVM *mJavaVM = nullptr;
+    jobject mActivityContext = nullptr;
+#endif
 };
