@@ -30,3 +30,5 @@ Note: Some of the examples **require** Vulkan 1.4 to compile. I'm using "VK\_IMA
 ### Vulkan + OpenXR
 ![Example Image from OpenXR via SteamVR](https://github.com/mich-dy/mastering-game-animations/blob/main/16_vulkan_ideas_openxr/image_openxr.png)
 
+### Vulkan + Box3D physics
+![Example Image from Box3D integration](https://github.com/mich-dy/mastering-game-animations/blob/main/18_vulkan_box3d/image_box3d.png)
