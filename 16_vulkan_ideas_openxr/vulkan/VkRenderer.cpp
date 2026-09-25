@@ -399,9 +399,6 @@ bool VkRenderer::init(GLFWwindow *window, std::vector<std::string> &deviceExtFor
   // Cascaded Shadow map init
   mRenderData.rdShadowMapCascadeData.cascades.resize(mRenderData.SHADOW_MAP_LAYERS);
 
-  // dynamic light shadow map init
-  mRenderData.rdDynamicLightShadowMapData.cascades.resize(6);
-
   // shadow maps need camera, so do after config creation
   updateShadowMapCascades();
 

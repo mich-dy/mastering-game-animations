@@ -2,14 +2,14 @@
 version: 13.0
 
 settings:
-  near-clip-plane: 0.1
-  far-clip-plane: 500
+  near-clip-plane: 0.4
+  far-clip-plane: 1000
   orth-nearfar-clip-plane: 40
   selected-model: 4
-  selected-instance: 12
+  selected-instance: 0
   selected-camera: 0
   selected-level: 0
-  selected-dynamic-light: 0
+  selected-dynamic-light: 1
   highlight-selection: false
   collision-enabled: 0
   interaction-enabled: false
@@ -22,23 +22,23 @@ settings:
   inverse-kinematics-enabled: false
   inverse-kinematics-iterations: 10
   navigation-enabled: false
-  skybox-enabled: false
-  fog-density: 0
-  light-source-angle-east-west: 40
-  light-source-angle-north-south: 40
-  light-source-intensity: 1
-  light-source-color: [1, 1, 1]
+  skybox-enabled: true
+  fog-density: 0.004
+  light-source-angle-east-west: 90
+  light-source-angle-north-south: 94.26
+  light-source-intensity: 0.21
+  light-source-color: [1, 0.87, 0.75]
   time-of-day-enabled: false
   time-of-day-scaling: 10
-  time-of-day-preset: 7
-  ssao-enabled: false
+  time-of-day-preset: 3
+  ssao-enabled: true
   ssao-radius: 5
   ssao-bias: 0.1
   ssao-exponent: 4
   ssao-blur-enabled: false
   ssao-blur-radius: 3
-  shadowmap-enabled: false
-  shadowmap-split-lambda: 0.95
+  shadowmap-enabled: true
+  shadowmap-split-lambda: 0.867
   shadowmap-constant-bias: 1.25
   shadowmap-slope-bias: 1.75
   shadowmap-pcf-enabled: false
@@ -47,12 +47,12 @@ settings:
 
 cameras:
   - camera-name: FreeCam
-    position: [16.757841, 28.80668, 5.827261]
-    view-azimuth: 280.28674
-    view-elevation: -49.499664
+    position: [20.201271, 24.756329, 2.6006763]
+    view-azimuth: 272.9865
+    view-elevation: -49.499714
     camera-type: 0
     camera-projection: 0
-    field-of-view: 93
+    field-of-view: 89
 
 models:
   - model-name: box.glb
@@ -244,3 +244,25 @@ instances:
     anim-blend-factor: 0
     enable-navigation: false
     path-target-instance: -1
+
+dynamic-lights:
+  - position: [-0.89663917, 22.35891, 7.8750286]
+    rotation: [180, 0, 0]
+    enabled: true
+    shadow-enabled: true
+    type: 1
+    diffuse-color: [0, 1, 1]
+    distance: 282.609
+    max-distance: 100
+    spot-cutoff-angle: 31.478
+    spot-outer-cutoff-angle: 32.522
+  - position: [2.028221, 23.851583, -3.3338683]
+    rotation: [180, 0, 0]
+    enabled: true
+    shadow-enabled: true
+    type: 1
+    diffuse-color: [0, 1, 0]
+    distance: 282.609
+    max-distance: 100
+    spot-cutoff-angle: 31.478
+    spot-outer-cutoff-angle: 32.522
