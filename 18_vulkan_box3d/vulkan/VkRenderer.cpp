@@ -744,7 +744,7 @@ bool VkRenderer::loadConfigFile(std::string configFileName) {
 
   // load light data
   std::vector<DynamicLightSettings> savedLightSettings = parser.getDynLightConfigs();
-  if (savedLevelSettings.empty()) {
+  if (savedLightSettings.empty()) {
     Logger::log(1, "%s info: no light data in file '%s', skipping\n", __FUNCTION__, parser.getFileName().c_str());
   } else {
     for (auto& lightSetting : savedLightSettings) {
