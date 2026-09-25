@@ -55,7 +55,7 @@ struct ModelSettings {
   glm::vec3 msPhysicsHullScale = glm::vec3(1.0f);
 
   physicsBodyType msPhysicsBodyType = physicsBodyType::staticBody;
-  float msPhysicsFrictionCoeff = 0.0f;
+  float msPhysicsFrictionCoeff = 1.0f;
   float msPhysicsRestitutionCoeff = 0.0f;
 
   bool msPreviewMode = false;
