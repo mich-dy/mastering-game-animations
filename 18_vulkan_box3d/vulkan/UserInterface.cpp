@@ -1032,11 +1032,11 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::SameLine();
 
     if (!renderData.rdPhysicsRunning) {
-      if (ImGui::Button("Play")) {
+      if (ImGui::Button("Play##PhysicsPlay")) {
         renderData.rdPhysicsRunning = true;
       }
     } else {
-      if (ImGui::Button("Stop")) {
+      if (ImGui::Button("Stop##PhysicsStop")) {
         renderData.rdPhysicsRunning = false;
       }
     }
@@ -1046,7 +1046,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("Single Step")) {
+    if (ImGui::Button("Single Step##PhysicsSingleStep")) {
       modInstCamData.micSingleStepPhysicsCallbackFunction();
     }
 
@@ -1055,7 +1055,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("Reset")) {
+    if (ImGui::Button("Reset##PhysicsReset")) {
       modInstCamData.micResetPhysicsCallbackFunction();
     }
   }
@@ -1482,7 +1482,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
       ImGui::BeginDisabled();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Prev")) {
+    if (ImGui::Button("Prev##MusicPrev")) {
       modInstCamData.micPlayPrevMusicTrackCallbackFunction();
     }
     if (!musicPlaying) {
@@ -1493,12 +1493,12 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
       ImGui::BeginDisabled();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Play")) {
+    if (ImGui::Button("Play##MusicPlay")) {
       modInstCamData.micPlayMusicTitleCallbackFunction(playlist.at(mCurrentPlaylistPos));
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("Play Random")) {
+    if (ImGui::Button("Play Random##MusicRandom")) {
       modInstCamData.micPlayRandomMusicCallbackFunction();
     }
     if (musicPlaying) {
@@ -1510,11 +1510,11 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     }
     ImGui::SameLine();
     if (!musicPaused) {
-      if (ImGui::Button("Pause")) {
+      if (ImGui::Button("Pause##MusicPause")) {
         modInstCamData.micPauseResumeMusicCallbackFunction(true);
       }
     } else {
-      if (ImGui::Button("Resume")) {
+      if (ImGui::Button("Resume##MusicResume")) {
         modInstCamData.micPauseResumeMusicCallbackFunction(false);
       }
     }
@@ -1526,7 +1526,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
       ImGui::BeginDisabled();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Stop")) {
+    if (ImGui::Button("Stop##MusicStop")) {
       modInstCamData.micStopMusicCallbackFunction();
     }
     if (!musicPlaying) {
@@ -1537,7 +1537,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
       ImGui::BeginDisabled();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Next")) {
+    if (ImGui::Button("Next##MusicNext")) {
       modInstCamData.micPlayNextMusicTrackCallbackFunction();
     }
     if (!musicPlaying) {
