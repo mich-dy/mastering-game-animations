@@ -1,0 +1,1293 @@
+# Application viewer config file
+version: 12.0
+
+settings:
+  near-clip-plane: 1
+  far-clip-plane: 600
+  orth-nearfar-clip-plane: 40
+  selected-model: 2
+  selected-instance: 0
+  selected-camera: 0
+  selected-level: 1
+  selected-dynamic-light: 0
+  highlight-selection: false
+  collision-enabled: 2
+  interaction-enabled: true
+  interaction-min-range: 1.5
+  interaction-max-range: 10
+  interaction-fov: 45
+  gravity-enabled: true
+  level-collision-ground-slope: 40
+  level-collision-max-stairstep-height: 1.75
+  inverse-kinematics-enabled: true
+  inverse-kinematics-iterations: 10
+  navigation-enabled: false
+  skybox-enabled: false
+  fog-density: 0
+  light-source-angle-east-west: 40
+  light-source-angle-north-south: 40
+  light-source-intensity: 0
+  light-source-color: [1, 1, 1]
+  time-of-day-enabled: false
+  time-of-day-scaling: 10
+  time-of-day-preset: 7
+  ssao-enabled: false
+  ssao-radius: 5
+  ssao-bias: 0.200000003
+  ssao-exponent: 4
+  ssao-blur-enabled: false
+  ssao-blur-radius: 3
+  shadowmap-enabled: false
+  shadowmap-split-lambda: 0.949999988
+  shadowmap-constant-bias: 1.25
+  shadowmap-slope-bias: 1.75
+  shadowmap-pcf-enabled: false
+  shadowmap-pcf-scale: 0.100000001
+  shadowmap-pcf-range: 3
+
+levels:
+  - level-name: level5_zone1_level_design_2002.glb
+    level-file: assets/level/level5_zone1_level_design_2002.glb
+    position: [0, 0, 0]
+    rotation: [0, 0, 0]
+    scale: 2.5
+    swap-axes: false
+
+cameras:
+  - camera-name: FreeCam
+    position: [-67.8407211, 18.4755554, -67.8343353]
+    view-azimuth: 117.793228
+    view-elevation: -25.1997013
+    camera-type: 0
+    camera-projection: 0
+    field-of-view: 90
+  - camera-name: OrthoCam
+    position: [-0.0973121524, 8.39158821, 2.11331558]
+    view-azimuth: 4.69999981
+    view-elevation: -18.2000122
+    camera-type: 0
+    camera-projection: 1
+    ortho-scale: 20
+  - camera-name: ThirdPersonCam
+    position: [112.631668, 5, 15.70191]
+    view-azimuth: 38.8796844
+    view-elevation: -22.5
+    camera-type: 2
+    camera-projection: 0
+    field-of-view: 91
+    3rd-person-view-distance: 5
+    3rd-person-height-offset: 0
+  - camera-name: FollowCam
+    position: [3.76401448, 5.73458576, -5.39343214]
+    view-azimuth: 340.833191
+    view-elevation: -6.36617279
+    camera-type: 4
+    camera-projection: 0
+    field-of-view: 90
+    follow-cam-height-offset: 2
+  - camera-name: FirstPersonCam
+    position: [149.782974, -0.0801852494, 3.78474951]
+    view-azimuth: 225.700012
+    view-elevation: -6.60000229
+    camera-type: 1
+    camera-projection: 0
+    field-of-view: 88
+    1st-person-view-lock: true
+    1st-person-bone-to-follow: 5
+    1st-person-view-offsets: [0, 0.100000001, 0.449999988]
+
+models:
+  - model-name: Woman.gltf
+    model-file: assets/woman/Woman.gltf
+    is-nav-target: false
+    idle-walk-run-clips:
+      - 255:
+          idle-clip: 0
+          idle-clip-speed: 2
+          walk-clip: 9
+          walk-clip-speed: 8
+          run-clip: 6
+          run-clip-speed: 10
+    action-clips:
+      - 3:
+          clip: 2
+          clip-speed: 5
+      - 4:
+          clip: 1
+          clip-speed: 5
+      - 5:
+          clip: 5
+          clip-speed: 6
+      - 6:
+          clip: 4
+          clip-speed: 2
+    action-sequences:
+      - 0: 3
+      - 0: 5
+      - 0: 6
+      - 1: 4
+      - 2: 4
+    bounding-sphere-adjustments:
+      - [0, -0.31400001, 0, 0.600000024]
+      - [0, 0, 0, 1.70000005]
+      - [0, 0, 0, 3]
+      - [0, 0, 0, 3]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0.300000012, 0, 1.75]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [-0.0500000007, -0.00999999978, 0, 1.5]
+      - [-0.100000001, 0.200000003, 0, 1.5]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 0.00999999978]
+      - [0.0500000007, -0.00999999978, 0, 1.5]
+      - [0.100000001, 0.200000003, 0, 1.5]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, -0.200000003, 0, 4]
+      - [0, 0, 0, 1.5]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, -0.200000003, -0, 4]
+      - [0, 0, 0, 1.29999995]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+      - [0, 0, 0, 1]
+    forward-speed-factor: 4
+    left-foot-ik-chain:
+      - 33
+      - 32
+      - 31
+    right-foot-ik-chain:
+      - 38
+      - 37
+      - 36
+  - model-name: Man.gltf
+    model-file: assets/man/Man.gltf
+    is-nav-target: false
+    idle-walk-run-clips:
+      - 0:
+          idle-clip: 4
+          idle-clip-speed: 1.5
+          walk-clip: 22
+          walk-clip-speed: 1.5
+          run-clip: 17
+          run-clip-speed: 1.5
+      - 1:
+          idle-clip: 4
+          idle-clip-speed: 1.5
+          walk-clip: 22
+          walk-clip-speed: 2
+          run-clip: 17
+          run-clip-speed: 3
+      - 2:
+          idle-clip: 4
+          idle-clip-speed: 1.5
+          walk-clip: 16
+          walk-clip-speed: 2
+          run-clip: 16
+          run-clip-speed: 3
+      - 4:
+          idle-clip: 4
+          idle-clip-speed: 1.5
+          walk-clip: 19
+          walk-clip-speed: 1
+          run-clip: 19
+          run-clip-speed: 3
+      - 8:
+          idle-clip: 4
+          idle-clip-speed: 1.5
+          walk-clip: 18
+          walk-clip-speed: 1
+          run-clip: 18
+          run-clip-speed: 3
+    action-clips:
+      - 5:
+          clip: 14
+          clip-speed: 1.5
+      - 7:
+          clip: 15
+          clip-speed: 1.20000005
+      - 8:
+          clip: 12
+          clip-speed: 1.20000005
+      - 9:
+          clip: 10
+          clip-speed: 1.20000005
+      - 10:
+          clip: 23
+          clip-speed: 1.20000005
+    action-sequences:
+      - 0: 5
+      - 0: 8
+      - 0: 9
+      - 0: 10
+      - 1: 7
+      - 2: 7
+    bounding-sphere-adjustments:
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 10]
+      - [0, 0, 0, 3]
+      - [0, 0, 0, 2]
+      - [0, 0, 0, 2]
+      - [0, 0.207000002, 0, 0.00999999978]
+      - [0, 0.409000009, -0.0329999998, 2]
+      - [0, 0, 0, 0.00999999978]
+      - [-0.200000003, 0, -0.100000001, 1.70000005]
+      - [0, 0, 0, 0.00999999978]
+      - [0, -0.100000001, 0, 1.39999998]
+      - [0, 0, 0, 0.778500021]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 1.52209997]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0.200000003, 0, 0.100000001, 1.70000005]
+      - [0, 0, 0, 0.00999999978]
+      - [0, -0.100000001, 0, 1.39999998]
+      - [0, 0, 0, 0.752099991]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 1.57009995]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 0.00999999978]
+      - [0, 0, 0, 1]
+      - [-0.100000001, -0.200000003, 0, 1]
+      - [0, 0, 0, 1]
+      - [-0.100000001, -0.200000003, 0, 1]
+      - [0, 0.25, 0, 0.699999988]
+      - [0, 0.25, 0, 0.699999988]
+    forward-speed-factor: 4
+    head-movement-mappings:
+      - 0: 25
+      - 1: 26
+      - 2: 27
+      - 3: 24
+
+node-trees:
+  - node-tree-name: AllRunCollisionMan
+    editor-settings: "[editor]\npanning=-528,-89\n\n[node.0]\norigin=-79,102\n\n[node.9]\norigin=1014,520\n\n[node.8]\norigin=798,405\n\n[node.7]\norigin=614,896\n\n[node.6]\norigin=331,884\n\n[node.5]\norigin=557,461\n\n[node.4]\norigin=241,662\n\n[node.3]\norigin=953,-376\n\n[node.2]\norigin=530,-123\n\n[node.1]\norigin=57,107\n\n[node.10]\norigin=149,-118\n\n[node.11]\norigin=1142,-346\n\n[node.14]\norigin=332,-131\n\n[node.17]\norigin=1129,-211\n\n[node.13]\norigin=931,-206\n\n[node.24]\norigin=1940,180\n\n[node.16]\norigin=1612,137\n\n[node.12]\norigin=937,246\n\n[node.42]\norigin=2795,-176\n\n[node.19]\norigin=1544,-247\n\n[node.25]\norigin=681,-208\n\n[node.40]\norigin=2461,-183\n\n[node.30]\norigin=1752,-89\n\n[node.29]\norigin=1732,-296\n\n[node.28]\norigin=1708,-514\n\n[node.27]\norigin=693,-419\n\n[node.39]\norigin=3437,-604\n\n[node.38]\norigin=2768,-597\n\n[node.37]\norigin=2452,-592\n\n[node.23]\norigin=1789,172\n\n[node.22]\norigin=1467,143\n\n[node.21]\norigin=1245,190\n\n[node.15]\norigin=1541,-423\n\n[node.20]\norigin=1105,-17\n\n[node.18]\norigin=917,21\n\n[node.36]\norigin=2312,-301\n\n[node.31]\norigin=2058,-297\n\n[node.34]\norigin=1317,-33\n\n[node.33]\norigin=1320,-192\n\n[node.32]\norigin=1312,-363\n\n[node.26]\norigin=680,1\n\n[node.35]\norigin=1551,-58\n\n[node.43]\norigin=3099,-602\n\n[node.41]\norigin=1300,821\n\n[node.44]\norigin=1661,616\n"
+    nodes:
+      - node-type: 1
+        node-id: 0
+      - node-type: 7
+        node-id: 1
+        node-data:
+          - instance-move-direction: 1
+          - instance-move-state: 1
+      - node-type: 8
+        node-id: 4
+        node-data:
+          - event-cooldown: 1.000000
+          - event-type: 2
+      - node-type: 7
+        node-id: 5
+        node-data:
+          - instance-max-rotation: 0.000000
+          - instance-min-rotation: 180.000000
+          - instance-random-rotation: 0
+          - instance-relative-rotation: 1
+      - node-type: 8
+        node-id: 6
+        node-data:
+          - event-cooldown: 0.200000
+          - event-type: 1
+      - node-type: 5
+        node-id: 7
+        node-data:
+          - selector-num-outs: 2
+          - selector-wait-time: 0.000000
+      - node-type: 7
+        node-id: 8
+        node-data:
+          - instance-max-rotation: -40.000000
+          - instance-min-rotation: -50.000000
+          - instance-random-rotation: 1
+          - instance-relative-rotation: 1
+      - node-type: 7
+        node-id: 9
+        node-data:
+          - instance-max-rotation: 40.000000
+          - instance-min-rotation: 40.000000
+          - instance-random-rotation: 1
+          - instance-relative-rotation: 1
+      - node-type: 4
+        node-id: 10
+        node-data:
+          - random-wait-max-time: 12.000000
+          - random-wait-min-time: 4.000000
+      - node-type: 5
+        node-id: 2
+        node-data:
+          - selector-num-outs: 3
+          - selector-wait-time: 1.000000
+      - node-type: 9
+        node-id: 3
+        node-data:
+          - action-move-state: 5
+      - node-type: 3
+        node-id: 11
+        node-data:
+          - wait-time: 2.500000
+      - node-type: 9
+        node-id: 13
+        node-data:
+          - action-move-state: 10
+      - node-type: 7
+        node-id: 14
+        node-data:
+          - instance-move-direction: 0
+          - instance-move-state: 0
+      - node-type: 3
+        node-id: 17
+        node-data:
+          - wait-time: 3.500000
+      - node-type: 9
+        node-id: 18
+        node-data:
+          - action-move-state: 8
+      - node-type: 3
+        node-id: 20
+        node-data:
+          - wait-time: 4.000000
+      - node-type: 8
+        node-id: 12
+        node-data:
+          - event-cooldown: 0.000000
+          - event-type: 3
+      - node-type: 9
+        node-id: 16
+        node-data:
+          - action-move-state: 10
+      - node-type: 7
+        node-id: 21
+        node-data:
+          - instance-move-direction: 0
+          - instance-move-state: 0
+      - node-type: 3
+        node-id: 22
+        node-data:
+          - wait-time: 1.000000
+      - node-type: 3
+        node-id: 23
+        node-data:
+          - wait-time: 1.000000
+      - node-type: 9
+        node-id: 24
+        node-data:
+          - action-move-state: 0
+      - node-type: 11
+        node-id: 25
+        node-data:
+          - face-anim: 4
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 1.000000
+          - face-anim-start-weight: 0.000000
+      - node-type: 11
+        node-id: 26
+        node-data:
+          - face-anim: 1
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 1.000000
+          - face-anim-start-weight: 0.000000
+      - node-type: 11
+        node-id: 27
+        node-data:
+          - face-anim: 1
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 1.000000
+          - face-anim-start-weight: 0.000000
+      - node-type: 11
+        node-id: 28
+        node-data:
+          - face-anim: 1
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 0.000000
+          - face-anim-start-weight: 1.000000
+      - node-type: 11
+        node-id: 29
+        node-data:
+          - face-anim: 4
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 0.000000
+          - face-anim-start-weight: 1.000000
+      - node-type: 11
+        node-id: 30
+        node-data:
+          - face-anim: 1
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 0.000000
+          - face-anim-start-weight: 1.000000
+      - node-type: 11
+        node-id: 31
+      - node-type: 9
+        node-id: 32
+        node-data:
+          - action-move-state: 0
+      - node-type: 9
+        node-id: 33
+        node-data:
+          - action-move-state: 0
+      - node-type: 9
+        node-id: 34
+        node-data:
+          - action-move-state: 0
+      - node-type: 3
+        node-id: 15
+        node-data:
+          - wait-time: 0.500000
+      - node-type: 3
+        node-id: 19
+        node-data:
+          - wait-time: 0.500000
+      - node-type: 3
+        node-id: 35
+        node-data:
+          - wait-time: 0.500000
+      - node-type: 5
+        node-id: 36
+        node-data:
+          - selector-num-outs: 2
+          - selector-wait-time: 0.500000
+      - node-type: 12
+        node-id: 37
+        node-data:
+          - head-anim-left-right: 1
+          - head-anim-left-right-blend-time: 0.200000
+          - head-anim-left-right-end-weight: 0.750000
+          - head-anim-left-right-start-weight: 0.000000
+      - node-type: 12
+        node-id: 38
+        node-data:
+          - head-anim-left-right: 1
+          - head-anim-left-right-blend-time: 0.400000
+          - head-anim-left-right-end-weight: -0.750000
+          - head-anim-left-right-start-weight: 0.750000
+      - node-type: 12
+        node-id: 39
+        node-data:
+          - head-anim-left-right: 1
+          - head-anim-left-right-blend-time: 0.200000
+          - head-anim-left-right-end-weight: 0.000000
+          - head-anim-left-right-start-weight: 0.750000
+      - node-type: 12
+        node-id: 40
+        node-data:
+          - head-anim-up-down: 1
+          - head-anim-up-down-blend-time: 0.250000
+          - head-anim-up-down-end-weight: -0.750000
+          - head-anim-up-down-start-weight: 0.000000
+      - node-type: 12
+        node-id: 42
+        node-data:
+          - head-anim-up-down: 1
+          - head-anim-up-down-blend-time: 0.250000
+          - head-anim-up-down-end-weight: 0.000000
+          - head-anim-up-down-start-weight: -0.750000
+      - node-type: 12
+        node-id: 43
+        node-data:
+          - head-anim-left-right: 1
+          - head-anim-left-right-blend-time: 0.400000
+          - head-anim-left-right-end-weight: 0.750000
+          - head-anim-left-right-start-weight: -0.750000
+      - node-type: 8
+        node-id: 41
+        node-data:
+          - event-cooldown: 1.000000
+          - event-type: 4
+      - node-type: 7
+        node-id: 44
+        node-data:
+          - instance-max-rotation: 0.000000
+          - instance-min-rotation: 180.000000
+          - instance-random-rotation: 0
+          - instance-relative-rotation: 1
+    links:
+      - 10017: [28200, 31000]
+      - 10001: [22200, 16000]
+      - 10030: [11200, 32000]
+      - 10013: [2202, 26000]
+      - 10026: [0, 1000]
+      - 10000: [21200, 22000]
+      - 10029: [32200, 15000]
+      - 10021: [18200, 20000]
+      - 10004: [4200, 5000]
+      - 10033: [34200, 35000]
+      - 10020: [15200, 28000]
+      - 10019: [29200, 31000]
+      - 10008: [14200, 2000]
+      - 10018: [13200, 17000]
+      - 10032: [20200, 34000]
+      - 10003: [23200, 24000]
+      - 10009: [1200, 10000]
+      - 10038: [36200, 37000]
+      - 10012: [2201, 25000]
+      - 10041: [38200, 43000]
+      - 10024: [27200, 3000]
+      - 10011: [3200, 11000]
+      - 10040: [43200, 39000]
+      - 10014: [12200, 21000]
+      - 10027: [17200, 33000]
+      - 10039: [37200, 38000]
+      - 10010: [2200, 27000]
+      - 10007: [7201, 9000]
+      - 10036: [40200, 42000]
+      - 10023: [30200, 31000]
+      - 10016: [10200, 14000]
+      - 10015: [25200, 13000]
+      - 10002: [16200, 23000]
+      - 10031: [33200, 19000]
+      - 10028: [35200, 30000]
+      - 10005: [6200, 7000]
+      - 10034: [31200, 36000]
+      - 10025: [19200, 29000]
+      - 10035: [36201, 40000]
+      - 10006: [7200, 8000]
+      - 10022: [26200, 18000]
+      - 10037: [41200, 44000]
+  - node-tree-name: AllRunCollisionWoman
+    editor-settings: "[editor]\npanning=-612,98\n\n[node.0]\norigin=-144,33\n\n[node.9]\norigin=1014,520\n\n[node.8]\norigin=798,405\n\n[node.7]\norigin=614,896\n\n[node.6]\norigin=331,884\n\n[node.5]\norigin=557,461\n\n[node.4]\norigin=241,662\n\n[node.3]\norigin=988,-270\n\n[node.2]\norigin=530,-123\n\n[node.1]\norigin=-17,25\n\n[node.10]\norigin=157,-125\n\n[node.11]\norigin=1205,-267\n\n[node.14]\norigin=332,-131\n\n[node.17]\norigin=1218,11\n\n[node.13]\norigin=994,13\n\n[node.16]\norigin=1207,-126\n\n[node.12]\norigin=994,-128\n\n[node.30]\norigin=2075,-208\n\n[node.29]\norigin=1794,34\n\n[node.28]\norigin=1790,-183\n\n[node.27]\norigin=1785,-390\n\n[node.25]\norigin=1615,11\n\n[node.24]\norigin=1611,-131\n\n[node.19]\norigin=1603,-315\n\n[node.23]\norigin=1390,30\n\n[node.22]\norigin=1404,-124\n\n[node.21]\norigin=727,74\n\n[node.15]\norigin=1374,-284\n\n[node.20]\norigin=723,-133\n\n[node.18]\norigin=709,-345\n\n[node.26]\norigin=1009,267\n\n[node.31]\norigin=1643,243\n\n[node.32]\norigin=1265,355\n\n[node.33]\norigin=1433,393\n"
+    nodes:
+      - node-type: 1
+        node-id: 0
+      - node-type: 7
+        node-id: 1
+        node-data:
+          - instance-move-direction: 1
+          - instance-move-state: 1
+      - node-type: 8
+        node-id: 4
+        node-data:
+          - event-cooldown: 1.000000
+          - event-type: 2
+      - node-type: 7
+        node-id: 5
+        node-data:
+          - instance-max-rotation: 0.000000
+          - instance-min-rotation: 180.000000
+          - instance-random-rotation: 0
+          - instance-relative-rotation: 1
+      - node-type: 8
+        node-id: 6
+        node-data:
+          - event-cooldown: 0.200000
+          - event-type: 1
+      - node-type: 5
+        node-id: 7
+        node-data:
+          - selector-num-outs: 2
+          - selector-wait-time: 0.000000
+      - node-type: 7
+        node-id: 8
+        node-data:
+          - instance-max-rotation: -40.000000
+          - instance-min-rotation: -50.000000
+          - instance-random-rotation: 1
+          - instance-relative-rotation: 1
+      - node-type: 7
+        node-id: 9
+        node-data:
+          - instance-max-rotation: 40.000000
+          - instance-min-rotation: 40.000000
+          - instance-random-rotation: 1
+          - instance-relative-rotation: 1
+      - node-type: 4
+        node-id: 10
+        node-data:
+          - random-wait-max-time: 12.000000
+          - random-wait-min-time: 4.000000
+      - node-type: 5
+        node-id: 2
+        node-data:
+          - selector-num-outs: 3
+          - selector-wait-time: 1.000000
+      - node-type: 9
+        node-id: 3
+        node-data:
+          - action-move-state: 5
+      - node-type: 3
+        node-id: 11
+        node-data:
+          - wait-time: 2.500000
+      - node-type: 9
+        node-id: 12
+        node-data:
+          - action-move-state: 6
+      - node-type: 7
+        node-id: 14
+        node-data:
+          - instance-move-direction: 0
+          - instance-move-state: 0
+      - node-type: 9
+        node-id: 15
+        node-data:
+          - action-move-state: 0
+      - node-type: 3
+        node-id: 16
+        node-data:
+          - wait-time: 3.000000
+      - node-type: 3
+        node-id: 17
+        node-data:
+          - wait-time: 3.000000
+      - node-type: 9
+        node-id: 13
+        node-data:
+          - action-move-state: 3
+      - node-type: 11
+        node-id: 18
+        node-data:
+          - face-anim: 1
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 1.000000
+          - face-anim-start-weight: 0.000000
+      - node-type: 11
+        node-id: 20
+        node-data:
+          - face-anim: 3
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 1.000000
+          - face-anim-start-weight: 0.000000
+      - node-type: 11
+        node-id: 21
+        node-data:
+          - face-anim: 4
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 1.000000
+          - face-anim-start-weight: 0.000000
+      - node-type: 9
+        node-id: 22
+        node-data:
+          - action-move-state: 0
+      - node-type: 9
+        node-id: 23
+        node-data:
+          - action-move-state: 0
+      - node-type: 11
+        node-id: 27
+        node-data:
+          - face-anim: 1
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 0.000000
+          - face-anim-start-weight: 1.000000
+      - node-type: 11
+        node-id: 28
+        node-data:
+          - face-anim: 3
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 0.000000
+          - face-anim-start-weight: 1.000000
+      - node-type: 11
+        node-id: 29
+        node-data:
+          - face-anim: 4
+          - face-anim-blend-time: 0.500000
+          - face-anim-end-weight: 0.000000
+          - face-anim-start-weight: 1.000000
+      - node-type: 11
+        node-id: 30
+      - node-type: 3
+        node-id: 19
+        node-data:
+          - wait-time: 0.500000
+      - node-type: 3
+        node-id: 24
+        node-data:
+          - wait-time: 0.500000
+      - node-type: 3
+        node-id: 25
+        node-data:
+          - wait-time: 0.500000
+      - node-type: 8
+        node-id: 26
+        node-data:
+          - event-cooldown: 1.000000
+          - event-type: 4
+      - node-type: 7
+        node-id: 31
+        node-data:
+          - instance-max-rotation: -170.000000
+          - instance-min-rotation: -180.000000
+          - instance-random-rotation: 1
+          - instance-relative-rotation: 1
+      - node-type: 5
+        node-id: 32
+        node-data:
+          - selector-num-outs: 2
+          - selector-wait-time: 0.000000
+      - node-type: 7
+        node-id: 33
+        node-data:
+          - instance-max-rotation: 180.000000
+          - instance-min-rotation: 170.000000
+          - instance-random-rotation: 1
+          - instance-relative-rotation: 1
+    links:
+      - 10025: [22200, 24000]
+      - 10022: [24200, 28000]
+      - 10024: [23200, 25000]
+      - 10023: [15200, 19000]
+      - 10030: [32200, 31000]
+      - 10001: [2200, 18000]
+      - 10020: [25200, 29000]
+      - 10007: [7201, 9000]
+      - 10021: [19200, 27000]
+      - 10008: [14200, 2000]
+      - 10029: [26200, 32000]
+      - 10000: [18200, 3000]
+      - 10013: [12200, 16000]
+      - 10009: [1200, 10000]
+      - 10006: [7200, 8000]
+      - 10011: [3200, 11000]
+      - 10016: [10200, 14000]
+      - 10003: [0, 1000]
+      - 10019: [17200, 23000]
+      - 10027: [28200, 30000]
+      - 10014: [2202, 21000]
+      - 10012: [21200, 13000]
+      - 10010: [2201, 20000]
+      - 10015: [13200, 17000]
+      - 10028: [29200, 30000]
+      - 10026: [27200, 30000]
+      - 10017: [11200, 15000]
+      - 10004: [4200, 5000]
+      - 10018: [16200, 22000]
+      - 10005: [6200, 7000]
+      - 10031: [32201, 33000]
+      - 10002: [20200, 12000]
+
+instances:
+  - model-file: Man.gltf
+    position: [62.2175827, 1.93525004, 15.5984774]
+    rotation: [0, 4.9420166, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 1.5
+    anim-blend-factor: 0.865477562
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [9.17634392, 19.9354992, 41.1198769]
+    rotation: [0, -73.6498718, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 2
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [-3.65678048, -6.27049971, -43.5202866]
+    rotation: [1.99172044, 111.232086, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 2
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [-30.989706, 19.9354992, 1.86497939]
+    rotation: [0, -139.414093, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 1.5
+    anim-blend-factor: 0
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [13.6781015, -6.27049971, -58.6169815]
+    rotation: [1.99172044, -10.0784607, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 2
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [108.097229, 23.9354992, -24.6214619]
+    rotation: [1.99172044, 115.342682, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 2
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [5.66535711, -6.27049971, -58.893959]
+    rotation: [1.99172044, 50.2133179, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 2
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Woman.gltf
+    position: [36.6161575, -10.2398577, -21.6394272]
+    rotation: [0, -78.4900055, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 0
+    2nd-anim-clip-number: 9
+    anim-clip-speed: 8
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionWoman
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [93.4137115, 23.9354992, 6.21539259]
+    rotation: [1.99172044, 9.32525635, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 1.5
+    anim-blend-factor: 0
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [96.3542175, 32.4355011, -20.3991184]
+    rotation: [1.99172044, -137.599182, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 2
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [-75.1530838, 19.9354992, 32.8084602]
+    rotation: [0, 58.3306885, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 1.5
+    anim-blend-factor: 0.799837589
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [-46.0650673, -17.4967499, 13.3013868]
+    rotation: [0, -55.8577881, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 2
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionMan
+    head-anim-left-right-timestamp: 0.302553773
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [-17.8329811, 19.9358482, 60.7174721]
+    rotation: [0, 115.100922, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 1.5
+    anim-blend-factor: 0
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [-20.3679695, -17.496563, -0.640301883]
+    rotation: [1.99172044, 106.373734, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 2
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [9.35472393, -17.4967499, 6.66354799]
+    rotation: [1.99172044, 120.378296, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 1.5
+    anim-blend-factor: 0
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [-9.46877193, -17.4967499, -6.23351479]
+    rotation: [1.99172044, -3.08590698, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 1.5
+    anim-blend-factor: 0
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: Man.gltf
+    position: [-6.0024972, -17.4967499, -8.8511467]
+    rotation: [1.99172044, -50.3261566, 0.309111625]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 4
+    2nd-anim-clip-number: 22
+    anim-clip-speed: 2
+    anim-blend-factor: 1
+    node-tree: AllRunCollisionMan
+    enable-navigation: false
+    path-target-instance: -1
+
+dynamic-lights:
+  - position: [-16.6924553, 23.5941849, -62.4782372]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 49.0439987
+    spot-cutoff-angle: 20
+    spot-outer-cutoff-angle: 180
+  - position: [-21.7464371, 23.5941849, -62.4691162]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 49.0439987
+    spot-cutoff-angle: 20
+    spot-outer-cutoff-angle: 180
+  - position: [-16.8848572, 23.5941849, -57.7095222]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 49.0439987
+    spot-cutoff-angle: 20
+    spot-outer-cutoff-angle: 180
+  - position: [-21.7714138, 23.5941849, -57.7609978]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 49.0439987
+    spot-cutoff-angle: 20
+    spot-outer-cutoff-angle: 175.604996
+  - position: [-22.6707611, 23.5941849, -42.7863388]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 304.299011
+    max-distance: 41.0820007
+  - position: [-22.5917397, 23.5941849, -38.0269966]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 304.299011
+    max-distance: 34.7130013
+  - position: [-17.6096573, 23.5941849, -37.8399086]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 304.299011
+    max-distance: 26.7509995
+  - position: [-17.6247253, 23.5941849, -42.4036713]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 304.299011
+    max-distance: 33.1199989
+  - position: [-46.8261108, 23.5941849, -42.8950195]
+    rotation: [0, 0, 180]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 0]
+    distance: 138.535004
+    max-distance: 29.9360008
+    spot-cutoff-angle: 114.013
+    spot-outer-cutoff-angle: 179.044998
+  - position: [-46.884552, 23.5941849, -38.1109085]
+    rotation: [0, 0, 180]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 0]
+    distance: 213.376007
+    max-distance: 31.5279999
+    spot-cutoff-angle: 80.7649994
+    spot-outer-cutoff-angle: 180
+  - position: [-51.7569046, 23.5941849, -37.9414749]
+    rotation: [0, 0, 180]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 0]
+    distance: 82.961998
+    max-distance: 20.3810005
+    spot-cutoff-angle: 94.012001
+    spot-outer-cutoff-angle: 180
+  - position: [-51.7365036, 23.5941849, -42.8149033]
+    rotation: [0, 0, 180]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 0]
+    distance: 74.8410034
+    max-distance: 31.5279999
+    spot-cutoff-angle: 103.758003
+    spot-outer-cutoff-angle: 180
+  - position: [-51.4230156, 23.5941849, -56.6775322]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 304.299011
+    max-distance: 49.0439987
+  - position: [-51.606823, 23.5941849, -61.3377113]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 304.299011
+    max-distance: 49.0439987
+  - position: [-46.9174309, 23.5941849, -61.3556557]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 304.299011
+    max-distance: 49.0439987
+  - position: [-46.8728905, 23.5941849, -56.6112671]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 304.299011
+    max-distance: 49.0439987
+  - position: [6.68499756, 23.5941849, -42.6510658]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 33.1199989
+  - position: [12.1041765, 23.5941849, -42.9102516]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 33.1199989
+  - position: [7.67446613, 23.5941849, -38.7559242]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 26.7509995
+  - position: [12.4292088, 23.5941849, -38.6933937]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 26.7509995
+  - position: [6.38321495, 23.5941849, -57.585537]
+    rotation: [0, 0, 180]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 49.0439987
+    spot-cutoff-angle: 90
+    spot-outer-cutoff-angle: 180
+  - position: [11.5800905, 23.5941849, -56.9609489]
+    rotation: [0, 0, 180]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 49.0439987
+    spot-cutoff-angle: 90
+    spot-outer-cutoff-angle: 180
+  - position: [6.10460186, 23.5941849, -62.4260674]
+    rotation: [0, 0, 180]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 49.0439987
+    spot-cutoff-angle: 90
+    spot-outer-cutoff-angle: 180
+  - position: [10.9317598, 23.5941849, -62.364872]
+    rotation: [0, 0, 180]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 1]
+    distance: 50
+    max-distance: 49.0439987
+    spot-cutoff-angle: 90
+    spot-outer-cutoff-angle: 180
+  - position: [-57.6500549, 6.48929501, -73.0590515]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [0, 0, 1]
+    distance: 500
+    max-distance: 12
+  - position: [-52.4640923, 6.48929501, -27.6115551]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [0, 0, 1]
+    distance: 500
+    max-distance: 12
+  - position: [-57.3193436, 6.48929501, -27.6495533]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [0, 0, 1]
+    distance: 500
+    max-distance: 12
+  - position: [-52.8067513, 6.48929501, -73.0884552]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [0, 0, 1]
+    distance: 500
+    max-distance: 12
+  - position: [-28.8949718, 6.48929501, -73.4577255]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [0, 0, 1]
+    distance: 500
+    max-distance: 12
+  - position: [-22.7601223, 6.48929501, -73.1254501]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [0, 0, 1]
+    distance: 500
+    max-distance: 12
+  - position: [-27.2972412, 6.48929501, -27.4694252]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [0, 0, 1]
+    distance: 500
+    max-distance: 12
+  - position: [-22.6518421, 6.48929501, -27.2616787]
+    rotation: [0, 0, 0]
+    enabled: true
+    type: 0
+    diffuse-color: [0, 0, 1]
+    distance: 500
+    max-distance: 12
+  - position: [24.8793087, 11.3680172, -50.9848366]
+    rotation: [0, 0, 90]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 0]
+    distance: 42.4830017
+    max-distance: 16.3689995
+    spot-cutoff-angle: 94.0130005
+    spot-outer-cutoff-angle: 105.476997
+  - position: [24.8990402, 11.4274578, -49.6399651]
+    rotation: [0, 0, 90]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 0]
+    distance: 60.5089989
+    max-distance: 16.3689995
+    spot-cutoff-angle: 96.3059998
+    spot-outer-cutoff-angle: 104.331001
+  - position: [24.9015903, 11.4528408, -50.2942085]
+    rotation: [0, 0, 90]
+    enabled: true
+    type: 1
+    diffuse-color: [1, 1, 0]
+    distance: 60.5089989
+    max-distance: 16.3689995
+    spot-cutoff-angle: 96.3059998
+    spot-outer-cutoff-angle: 104.331001
