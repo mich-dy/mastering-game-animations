@@ -2334,11 +2334,15 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
         ImGui::SliderFloat3("##PhysicsHullPos", glm::value_ptr(modelSettings.msPhysicsHullOffset),
           -10.0f, 10.0f, "%.3f", flags);
 
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Rotation (X/Y/Z):  ");
-        ImGui::SameLine();
-        ImGui::SliderFloat3("##PhysicsHullRot", glm::value_ptr(modelSettings.msPhysicsHullRotation),
-          -180.0f, 180.0f, "%.3f", flags);
+        if (modelSettings.msPhysicsHullType == physicsHullType::sphere) {
+          modelSettings.msPhysicsHullRotation = glm::vec3(0.0f);
+        } else {
+          ImGui::AlignTextToFramePadding();
+          ImGui::Text("Rotation (X/Y/Z):  ");
+          ImGui::SameLine();
+          ImGui::SliderFloat3("##PhysicsHullRot", glm::value_ptr(modelSettings.msPhysicsHullRotation),
+            -180.0f, 180.0f, "%.3f", flags);
+        }
 
         if (modelSettings.msPhysicsHullType == physicsHullType::box) {
           ImGui::AlignTextToFramePadding();

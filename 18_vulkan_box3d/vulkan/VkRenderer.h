@@ -151,6 +151,8 @@ class VkRenderer {
     void createBox3dPhysicsObject(std::shared_ptr<AssimpInstance> instance);
     void updateObjectsFromBox3d();
 
+    void drawBox3DBodyOutlines();
+
     void cleanupBox3d();
 
     void resetBox3d();

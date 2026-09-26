@@ -221,6 +221,7 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
 
   mModelInstCamData.micPhysicsHullTypeMap[physicsHullType::cube] = "Cube";
   mModelInstCamData.micPhysicsHullTypeMap[physicsHullType::box] = "Box";
+  mModelInstCamData.micPhysicsHullTypeMap[physicsHullType::sphere] = "Sphere";
 
   mModelInstCamData.micPhysicsBodyTypeMap[physicsBodyType::staticBody] = "Static";
   mModelInstCamData.micPhysicsBodyTypeMap[physicsBodyType::kinematicBody] = "Kinematic";
@@ -371,10 +372,7 @@ void VkRenderer::createBox3dPhysicsObject(std::shared_ptr<AssimpInstance> instan
   ModelSettings modelSettings = model->getModelSettings();
 
   if (B3_IS_NON_NULL(instSettings.isPhysicsBodyId)) {
-    // needs a lock to avoid object updates during physics step
-    mPhysicsTimer.callExtFunctionLocked([=]() {
-      b3DestroyBody(instSettings.isPhysicsBodyId);
-    });
+    b3DestroyBody(instSettings.isPhysicsBodyId);
   }
 
   b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -407,13 +405,35 @@ void VkRenderer::createBox3dPhysicsObject(std::shared_ptr<AssimpInstance> instan
 
   //b3BoxHull dynamicBox = b3MakeScaledBoxHull((b3Vec3) { 1.0f, 1.0f, 1.0f }, hullTransform, Tools::glmToBox3d(modelSettings.msPhysicsHullScale * instSettings.isScale));
 
-  // do a pre-scale
-  b3Vec3 h = Tools::glmToBox3d(modelSettings.msPhysicsHullSize);
-  b3Transform xf{};
-  b3ScaleBox( &h, &xf, Tools::glmToBox3d(modelSettings.msPhysicsHullScale * instSettings.isScale), 4.0f * B3_LINEAR_SLOP );
-  b3BoxHull dynamicBox = b3MakeTransformedBoxHull( h.x, h.y, h.z, hullTransform );
+  switch (modelSettings.msPhysicsHullType) {
+    case physicsHullType::box:
+    case physicsHullType::cube:
+      {
+        // do a pre-scale instead of post-scale
+        b3Vec3 h = Tools::glmToBox3d(modelSettings.msPhysicsHullSize);
+        b3Transform xf{};
+        b3ScaleBox( &h, &xf, Tools::glmToBox3d(modelSettings.msPhysicsHullScale * instSettings.isScale), 4.0f * B3_LINEAR_SLOP );
+        b3BoxHull dynamicBox = b3MakeTransformedBoxHull( h.x, h.y, h.z, hullTransform );
 
-  b3CreateHullShape(instSettings.isPhysicsBodyId, &shapeDef, &dynamicBox.base);
+        b3CreateHullShape(instSettings.isPhysicsBodyId, &shapeDef, &dynamicBox.base);
+
+      }
+      break;
+
+    case physicsHullType::sphere:
+      {
+        b3Sphere sphere{};
+        sphere.radius = modelSettings.msPhysicsHullSize.x * modelSettings.msPhysicsHullScale.x * instSettings.isScale;
+        sphere.center = Tools::glmToBox3d(modelSettings.msPhysicsHullOffset);
+
+        b3CreateSphereShape(instSettings.isPhysicsBodyId, &shapeDef, &sphere);
+      }
+      break;
+
+    default:
+      Logger::log(1, "%s error: invalid hull type \n", __FUNCTION__);
+      break;
+  }
 
   // store orig position and rotation
   if (!mRenderData.rdPhysicsRunning) {
@@ -431,7 +451,10 @@ void VkRenderer::createBox3dPhysicsObjects() {
     if (modelSettings.msPhysicsEnabled) {
       std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()];
       for (auto instance : instances) {
-        createBox3dPhysicsObject(instance);
+        // needs a lock to avoid object updates during physics step
+        mPhysicsTimer.callExtFunctionLocked([=, this]() {
+          createBox3dPhysicsObject(instance);
+        });
       }
     }
   }
@@ -443,7 +466,6 @@ void VkRenderer::doBox3dStep() {
   int subStepCount = 4;
 
   b3World_Step(mBox3DWorldId, timeStep, subStepCount);
-  updateObjectsFromBox3d();
 }
 
 void VkRenderer::updateObjectsFromBox3d() {
@@ -519,6 +541,68 @@ void VkRenderer::resetBox3d() {
   initBox3d();
   createBox3dPhysicsObjects();
 }
+
+void VkRenderer::drawBox3DBodyOutlines() {
+  std::shared_ptr<AssimpModel> currentModel = mModelInstCamData.micModelList.at(mModelInstCamData.micSelectedModel);
+  ModelSettings modelSettings = currentModel->getModelSettings();
+
+  std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[currentModel->getModelFileName()];
+
+  for (auto instance : instances) {
+    InstanceSettings instSettings = instance->getInstanceSettings();
+
+    VkSimpleMesh bodyMesh{};
+    switch (modelSettings.msPhysicsHullType) {
+      case physicsHullType::box:
+      case physicsHullType::cube:
+          bodyMesh = mCubeModel.getVertexData();
+        break;
+      case physicsHullType::sphere:
+          bodyMesh = mSphereModel.getVertexData();
+        break;
+      default:
+        Logger::log(1, "%s error: invalid hull type \n", __FUNCTION__);
+        break;
+    }
+
+    std::for_each(bodyMesh.vertices.begin(), bodyMesh.vertices.end(),
+      [=](auto &n) {
+
+      // first TRS of hull
+      n.position *= modelSettings.msPhysicsHullSize * modelSettings.msPhysicsHullScale;
+      n.position =
+          glm::quat(glm::radians(modelSettings.msPhysicsHullRotation))
+        * n.position;
+      n.position += modelSettings.msPhysicsHullOffset;
+
+      // then TRS of instance
+      n.position *= instSettings.isScale;
+      n.position =
+          glm::quat(glm::radians(instSettings.isWorldRotation))
+        * n.position;
+      n.position += instSettings.isWorldPosition;
+
+      switch (modelSettings.msPhysicsBodyType) {
+        case physicsBodyType::staticBody:
+          n.color = glm::vec3(0.0f, 1.0f, 0.0f);
+          break;
+        case physicsBodyType::kinematicBody:
+          n.color = glm::vec3(1.0f, 1.0f, 0.0f);
+          break;
+        case physicsBodyType::dynamicBody:
+          n.color = glm::vec3(1.0f, 0.0f, 0.0f);
+          break;
+        default:
+          Logger::log(1, "%s error: unknown physics body type\n", __FUNCTION__);
+          break;
+      }
+    });
+    mLineMesh->vertices.insert(mLineMesh->vertices.end(),
+     bodyMesh.vertices.begin(), bodyMesh.vertices.end());
+    mLineIndexCount += bodyMesh.vertices.size();
+  }
+}
+
 
 ModelInstanceCamData& VkRenderer::getModInstCamData() {
   return mModelInstCamData;
@@ -5399,53 +5483,9 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
   mLineIndexCount = 0;
   mLineMesh->vertices.clear();
 
+  // draw physics debug if requested
   if (mRenderData.rdDrawModelPhysicsBodies) {
-    std::shared_ptr<AssimpModel> currentModel = mModelInstCamData.micModelList.at(mModelInstCamData.micSelectedModel);
-    ModelSettings modelSettings = currentModel->getModelSettings();
-
-    std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[currentModel->getModelFileName()];
-
-    for (auto instance : instances) {
-      InstanceSettings instSettings = instance->getInstanceSettings();
-
-      VkSimpleMesh bodyMesh = mCubeModel.getVertexData();
-      std::for_each(bodyMesh.vertices.begin(), bodyMesh.vertices.end(),
-        [=](auto &n) {
-
-        // first TRS of hull
-        n.position *= modelSettings.msPhysicsHullSize * modelSettings.msPhysicsHullScale;
-        n.position =
-            glm::quat(glm::radians(modelSettings.msPhysicsHullRotation))
-          * n.position;
-        n.position += modelSettings.msPhysicsHullOffset;
-
-        // then TRS of instance
-        n.position *= instSettings.isScale;
-        n.position =
-            glm::quat(glm::radians(instSettings.isWorldRotation))
-          * n.position;
-        n.position += instSettings.isWorldPosition;
-
-        switch (modelSettings.msPhysicsBodyType) {
-          case physicsBodyType::staticBody:
-            n.color = glm::vec3(0.0f, 1.0f, 0.0f);
-            break;
-          case physicsBodyType::kinematicBody:
-            n.color = glm::vec3(1.0f, 1.0f, 0.0f);
-            break;
-          case physicsBodyType::dynamicBody:
-            n.color = glm::vec3(1.0f, 0.0f, 0.0f);
-            break;
-          default:
-            Logger::log(1, "%s error: unknown physics body type\n", __FUNCTION__);
-            break;
-        }
-      });
-      mLineMesh->vertices.insert(mLineMesh->vertices.end(),
-       bodyMesh.vertices.begin(), bodyMesh.vertices.end());
-      mLineIndexCount += bodyMesh.vertices.size();
-    }
-
+    drawBox3DBodyOutlines();
   }
 
   // level stuff

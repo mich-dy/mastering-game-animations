@@ -5,11 +5,11 @@ settings:
   near-clip-plane: 0.4
   far-clip-plane: 1000
   orth-nearfar-clip-plane: 40
-  selected-model: 4
-  selected-instance: 0
+  selected-model: 5
+  selected-instance: 15
   selected-camera: 0
   selected-level: 0
-  selected-dynamic-light: 1
+  selected-dynamic-light: 0
   highlight-selection: false
   collision-enabled: 0
   interaction-enabled: false
@@ -35,7 +35,7 @@ settings:
   ssao-radius: 5
   ssao-bias: 0.1
   ssao-exponent: 4
-  ssao-blur-enabled: false
+  ssao-blur-enabled: true
   ssao-blur-radius: 3
   shadowmap-enabled: true
   shadowmap-split-lambda: 0.867
@@ -47,7 +47,7 @@ settings:
 
 cameras:
   - camera-name: FreeCam
-    position: [20.201271, 24.756329, 2.6006763]
+    position: [20.273983, 24.841578, 2.6044698]
     view-azimuth: 272.9865
     view-elevation: -49.499714
     camera-type: 0
@@ -107,6 +107,19 @@ models:
     physics-body-type: 2
     physics-friction-coeff: 0.8
     physics-restitution-coeff: 0.5
+  - model-name: sphere.glb
+    model-file: assets/sphere/sphere.glb
+    is-nav-target: false
+    forward-speed-factor: 4
+    physics-enabled: true
+    physics-hull-type: 2
+    physics-hull-size: [1, 1, 1]
+    physics-hull-offset: [0, 0, 0]
+    physics-hull-rotation: [0, 0, 0]
+    physics-hull-scale: [1, 1, 1]
+    physics-body-type: 2
+    physics-friction-coeff: 1
+    physics-restitution-coeff: 0.7
 
 node-trees:
   []
@@ -237,6 +250,39 @@ instances:
     position: [3.0767138, 11.866059, 7.3062563]
     rotation: [-28.856207, 0, 31.585093]
     scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 0
+    2nd-anim-clip-number: 0
+    anim-clip-speed: 1
+    anim-blend-factor: 0
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: sphere.glb
+    position: [0.88356596, 11.839072, 14.545978]
+    rotation: [0, 0, 0]
+    scale: 1
+    swap-axes: false
+    1st-anim-clip-number: 0
+    2nd-anim-clip-number: 0
+    anim-clip-speed: 1
+    anim-blend-factor: 0
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: sphere.glb
+    position: [-4.9967957, 14.086607, -16.701756]
+    rotation: [0, 0, 0]
+    scale: 2.575001
+    swap-axes: false
+    1st-anim-clip-number: 0
+    2nd-anim-clip-number: 0
+    anim-clip-speed: 1
+    anim-blend-factor: 0
+    enable-navigation: false
+    path-target-instance: -1
+  - model-file: sphere.glb
+    position: [3.8928497, 3.481512, 1.9524401]
+    rotation: [21.789948, 0, 9.398045]
+    scale: 1.5500288
     swap-axes: false
     1st-anim-clip-number: 0
     2nd-anim-clip-number: 0

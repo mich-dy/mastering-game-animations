@@ -238,7 +238,8 @@ enum class dynamicLightType : uint8_t {
 
 enum class physicsHullType : uint8_t {
   cube = 0,
-  box
+  box,
+  sphere
 };
 
 enum class physicsBodyType : uint8_t {
