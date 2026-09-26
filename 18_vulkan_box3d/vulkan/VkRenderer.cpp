@@ -400,7 +400,7 @@ void VkRenderer::createBox3dPhysicsObject(std::shared_ptr<AssimpInstance> instan
   shapeDef.baseMaterial.restitution = modelSettings.msPhysicsRestitutionCoeff;
 
   b3Transform hullTransform{};
-  hullTransform.p = Tools::glmToBox3d(modelSettings.msPhysicsHullOffset);
+  hullTransform.p = Tools::glmToBox3d(modelSettings.msPhysicsHullOffset * instSettings.isScale);
   hullTransform.q = Tools::glmToBox3d(glm::quat(glm::radians(modelSettings.msPhysicsHullRotation)));
 
   //b3BoxHull dynamicBox = b3MakeScaledBoxHull((b3Vec3) { 1.0f, 1.0f, 1.0f }, hullTransform, Tools::glmToBox3d(modelSettings.msPhysicsHullScale * instSettings.isScale));
@@ -424,7 +424,7 @@ void VkRenderer::createBox3dPhysicsObject(std::shared_ptr<AssimpInstance> instan
       {
         b3Sphere sphere{};
         sphere.radius = modelSettings.msPhysicsHullSize.x * modelSettings.msPhysicsHullScale.x * instSettings.isScale;
-        sphere.center = Tools::glmToBox3d(modelSettings.msPhysicsHullOffset);
+        sphere.center = Tools::glmToBox3d(modelSettings.msPhysicsHullOffset * instSettings.isScale);
 
         b3CreateSphereShape(instSettings.isPhysicsBodyId, &shapeDef, &sphere);
       }
