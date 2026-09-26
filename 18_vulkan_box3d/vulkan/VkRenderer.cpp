@@ -466,6 +466,7 @@ void VkRenderer::doBox3dStep() {
   int subStepCount = 4;
 
   b3World_Step(mBox3DWorldId, timeStep, subStepCount);
+  updateObjectsFromBox3d();
 }
 
 void VkRenderer::updateObjectsFromBox3d() {
@@ -499,7 +500,6 @@ void VkRenderer::updateBox3dPhysics() {
 
   if (mRenderData.rdPhysicsRunning) {
     doBox3dStep();
-    updateObjectsFromBox3d();
   }
 
   mRenderData.rdPhysicsTime = mRenderData.rdPhysicsTimer.stop();
