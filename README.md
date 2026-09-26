@@ -32,3 +32,5 @@ Note: Some of the examples **require** Vulkan 1.4 to compile. I'm using "VK\_IMA
 
 ### Vulkan + Box3D physics
 ![Example Image from Box3D integration](https://github.com/mich-dy/mastering-game-animations/blob/main/18_vulkan_box3d/image_box3d.png)
+
+![Example Video from Box3D integration](https://github.com/mich-dy/mastering-game-animations/blob/main/18_vulkan_box3d/box3d.gif)
