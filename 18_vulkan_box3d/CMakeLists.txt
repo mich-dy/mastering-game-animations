@@ -233,6 +233,7 @@ file(GLOB SOURCES
   model/*.cpp
   octree/*.cpp
   graphnodes/*.cpp
+  physics/*.cpp
   ${imgui_SOURCE_DIR}/*.cpp
   # .cpp files for backends
   ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
@@ -245,7 +246,7 @@ file(GLOB SOURCES
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-target_include_directories(${PROJECT_NAME} PUBLIC window tools vulkan model octree graphnodes)
+target_include_directories(${PROJECT_NAME} PUBLIC window tools vulkan model octree graphnodes physics)
 
 # non-standard include dirs
 target_include_directories(${PROJECT_NAME} PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends

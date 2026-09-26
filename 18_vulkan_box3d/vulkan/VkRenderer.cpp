@@ -163,9 +163,9 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
 
   mModelInstCamData.micGetNavTargetsCallbackFunction = [this]() { return getNavTargets(); };
 
-  mModelInstCamData.micResetPhysicsCallbackFunction = [this]() { resetBox3d(); };
-  mModelInstCamData.micSingleStepPhysicsCallbackFunction = [this]() { doBox3dStep(); };
-  mModelInstCamData.micBakePhyiscsDataCallbackFunction = [this]() { createBox3dPhysicsObjects(); };
+  mModelInstCamData.micResetPhysicsCallbackFunction = [this]() { mPhysics.resetBox3d(mRenderData, mModelInstCamData); };
+  mModelInstCamData.micSingleStepPhysicsCallbackFunction = [this]() { mPhysics.doBox3dStep(mModelInstCamData); };
+  mModelInstCamData.micBakePhyiscsDataCallbackFunction = [this]() { mPhysics.createBox3dPhysicsObjects(mRenderData, mModelInstCamData); };
 
   mRenderData.rdAppExitCallbackFunction = [this]() { doExitApplication(); };
   mModelInstCamData.micSsetAppModeCallbackFunction = [this](appMode newMode) { setAppMode(newMode); };
@@ -343,7 +343,7 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
   updateShadowMapCascades();
 
   // start physics
-  if (!initBox3d()) {
+  if (!mPhysics.initBox3d(mRenderData, mModelInstCamData)) {
     return false;
   }
 
@@ -353,193 +353,6 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
 
   mApplicationRunning = true;
   return true;
-}
-
-bool VkRenderer::initBox3d() {
-  b3WorldDef worldDef = b3DefaultWorldDef();
-  worldDef.gravity = b3Vec3{ 0.0f, -10.0f, 0.0f };
-  mBox3DWorldId = b3CreateWorld(&worldDef);
-
-  mPhysicsTimer.registerFunction([this]() { updateBox3dPhysics(); } );
-  mPhysicsTimer.startTimer();
-
-  return true;
-}
-
-void VkRenderer::createBox3dPhysicsObject(std::shared_ptr<AssimpInstance> instance) {
-  InstanceSettings instSettings = instance->getInstanceSettings();
-  std::shared_ptr<AssimpModel> model = instance->getModel();
-  ModelSettings modelSettings = model->getModelSettings();
-
-  if (B3_IS_NON_NULL(instSettings.isPhysicsBodyId)) {
-    b3DestroyBody(instSettings.isPhysicsBodyId);
-  }
-
-  b3BodyDef bodyDef = b3DefaultBodyDef();
-  switch (modelSettings.msPhysicsBodyType) {
-    case physicsBodyType::staticBody:
-      bodyDef.type = b3_staticBody;
-      break;
-    case physicsBodyType::kinematicBody:
-      bodyDef.type = b3_kinematicBody;
-      break;
-    case physicsBodyType::dynamicBody:
-      bodyDef.type = b3_dynamicBody;
-      break;
-    default:
-      Logger::log(1, "%s error: unknown physics body type\n", __FUNCTION__);
-      break;
-  }
-  bodyDef.position = Tools::glmToBox3d(instSettings.isWorldPosition);
-  bodyDef.rotation = Tools::glmToBox3d(glm::quat(glm::radians(instSettings.isWorldRotation)));
-  instSettings.isPhysicsBodyId = b3CreateBody(mBox3DWorldId, &bodyDef);
-
-  b3ShapeDef shapeDef = b3DefaultShapeDef();
-  shapeDef.density = 1.0f;
-  shapeDef.baseMaterial.friction = modelSettings.msPhysicsFrictionCoeff;
-  shapeDef.baseMaterial.restitution = modelSettings.msPhysicsRestitutionCoeff;
-
-  b3Transform hullTransform{};
-  hullTransform.p = Tools::glmToBox3d(modelSettings.msPhysicsHullOffset * instSettings.isScale);
-  hullTransform.q = Tools::glmToBox3d(glm::quat(glm::radians(modelSettings.msPhysicsHullRotation)));
-
-  //b3BoxHull dynamicBox = b3MakeScaledBoxHull((b3Vec3) { 1.0f, 1.0f, 1.0f }, hullTransform, Tools::glmToBox3d(modelSettings.msPhysicsHullScale * instSettings.isScale));
-
-  switch (modelSettings.msPhysicsHullType) {
-    case physicsHullType::box:
-    case physicsHullType::cube:
-      {
-        // do a pre-scale instead of post-scale
-        b3Vec3 h = Tools::glmToBox3d(modelSettings.msPhysicsHullSize);
-        b3Transform xf{};
-        b3ScaleBox( &h, &xf, Tools::glmToBox3d(modelSettings.msPhysicsHullScale * instSettings.isScale), 4.0f * B3_LINEAR_SLOP );
-        b3BoxHull dynamicBox = b3MakeTransformedBoxHull( h.x, h.y, h.z, hullTransform );
-
-        b3CreateHullShape(instSettings.isPhysicsBodyId, &shapeDef, &dynamicBox.base);
-
-      }
-      break;
-
-    case physicsHullType::sphere:
-      {
-        b3Sphere sphere{};
-        sphere.radius = modelSettings.msPhysicsHullSize.x * modelSettings.msPhysicsHullScale.x * instSettings.isScale;
-        sphere.center = Tools::glmToBox3d(modelSettings.msPhysicsHullOffset * instSettings.isScale);
-
-        b3CreateSphereShape(instSettings.isPhysicsBodyId, &shapeDef, &sphere);
-      }
-      break;
-
-    default:
-      Logger::log(1, "%s error: invalid hull type \n", __FUNCTION__);
-      break;
-  }
-
-  // store orig position and rotation
-  if (!mRenderData.rdPhysicsRunning) {
-    instSettings.isOrigWorldPosition = instSettings.isWorldPosition;
-    instSettings.isOrigWorldRotation = instSettings.isWorldRotation;
-    instSettings.isOrigScale = instSettings.isScale;
-  }
-
-  instance->setInstanceSettings(instSettings);
-}
-
-void VkRenderer::createBox3dPhysicsObjects() {
-  for (const auto& model : mModelInstCamData.micModelList) {
-    ModelSettings modelSettings = model->getModelSettings();
-    if (modelSettings.msPhysicsEnabled) {
-      std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()];
-      for (auto instance : instances) {
-        // needs a lock to avoid object updates during physics step
-        mPhysicsTimer.callExtFunctionLocked([=, this]() {
-          createBox3dPhysicsObject(instance);
-        });
-      }
-    }
-  }
-}
-
-void VkRenderer::doBox3dStep() {
-  // TODO: make configurable or move to class header as constants
-  float timeStep = 1.0f / 60.0f;
-  int subStepCount = 4;
-
-  b3World_Step(mBox3DWorldId, timeStep, subStepCount);
-  updateObjectsFromBox3d();
-}
-
-void VkRenderer::updateObjectsFromBox3d() {
-  for (const auto& model : mModelInstCamData.micModelList) {
-    ModelSettings modelSettings = model->getModelSettings();
-    if (modelSettings.msPhysicsEnabled) {
-      std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()];
-
-      for (auto instance : instances) {
-        InstanceSettings instSettings = instance->getInstanceSettings();
-
-        if (B3_IS_NON_NULL(instSettings.isPhysicsBodyId)) {
-          b3Vec3 position = b3Body_GetPosition(instSettings.isPhysicsBodyId);
-          b3Quat rotation = b3Body_GetRotation(instSettings.isPhysicsBodyId);
-
-          instSettings.isWorldPosition = Tools::box3dToGlm(position);
-
-          glm::quat newRotation = Tools::box3dToGlm(rotation);
-          instSettings.isWorldRotation = glm::degrees(glm::eulerAngles(newRotation));
-
-          instance->setInstanceSettings(instSettings);
-        }
-      }
-    }
-  }
-}
-
-void VkRenderer::updateBox3dPhysics() {
-  mRenderData.rdPhysicsTime = 0.0f;
-  mRenderData.rdPhysicsTimer.start();
-
-  if (mRenderData.rdPhysicsRunning) {
-    doBox3dStep();
-  }
-
-  mRenderData.rdPhysicsTime = mRenderData.rdPhysicsTimer.stop();
-}
-
-void VkRenderer::cleanupBox3d() {
-  mPhysicsTimer.stopTimer();
-  mPhysicsTimer.cleanupFunctions();
-
-  if (B3_IS_NON_NULL(mBox3DWorldId)) {
-    b3DestroyWorld(mBox3DWorldId);
-  }
-
-  // cleanup body ids of instances too
-  for (const auto& model : mModelInstCamData.micModelList) {
-    ModelSettings modelSettings = model->getModelSettings();
-    if (modelSettings.msPhysicsEnabled) {
-      std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()];
-
-      for (auto instance : instances) {
-        InstanceSettings instSettings = instance->getInstanceSettings();
-        instSettings.isPhysicsBodyId = b3BodyId{};
-
-        // restore orig position and rotation
-        if (!mRenderData.rdPhysicsRunning) {
-          instSettings.isWorldPosition = instSettings.isOrigWorldPosition;
-          instSettings.isWorldRotation = instSettings.isOrigWorldRotation;
-          instSettings.isScale = instSettings.isOrigScale;
-        }
-
-        instance->setInstanceSettings(instSettings);
-      }
-    }
-  }
-}
-
-void VkRenderer::resetBox3d() {
-  cleanupBox3d();
-  initBox3d();
-  createBox3dPhysicsObjects();
 }
 
 void VkRenderer::drawBox3DBodyOutlines() {
@@ -2634,7 +2447,7 @@ void VkRenderer::handleMousePositionEvents(double xPos, double yPos) {
       std::shared_ptr<AssimpModel> model = currentInstance->getModel();
       ModelSettings modelSettings = model->getModelSettings();
       if (modelSettings.msPhysicsEnabled) {
-        createBox3dPhysicsObject(currentInstance);
+        mPhysics.createBox3dPhysicsObject(mRenderData, currentInstance);
       }
     }
 
@@ -6833,7 +6646,7 @@ bool VkRenderer::finishDraw() {
 }
 
 void VkRenderer::cleanup() {
-  cleanupBox3d();
+  mPhysics.cleanupBox3d(mRenderData, mModelInstCamData);
 
   VkResult result = vkDeviceWaitIdle(mRenderData.rdVkbDevice.device);
   if (result != VK_SUCCESS) {

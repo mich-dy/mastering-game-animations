@@ -50,6 +50,7 @@
 #include <DynamicLightDebugModel.h>
 #include <FullSphereModel.h>
 #include <SimpleCubeModel.h>
+#include <Physics.h>
 
 #include <VkRenderData.h>
 #include <ModelInstanceCamData.h>
@@ -132,30 +133,9 @@ class VkRenderer {
 
     void drawScene(bool shadowMapPass = false, uint32_t shadowMapLayer = 0);
 
-    TimerFunc mPhysicsTimer{};
-    b3WorldId mBox3DWorldId;
-    b3BodyId mBodyId;
-    b3BodyId mBody2Id;
-
+    Physics mPhysics{};
     SimpleCubeModel mCubeModel{};
-
-    glm::vec3 mBodyPos = glm::vec3(0.0f);
-    glm::quat mBodyRot = glm::identity<glm::quat>();
-    glm::vec3 mBody2Pos = glm::vec3(0.0f);
-    glm::quat mBody2Rot = glm::identity<glm::quat>();
-
-    bool initBox3d();
-    void updateBox3dPhysics();
-    void doBox3dStep();
-    void createBox3dPhysicsObjects();
-    void createBox3dPhysicsObject(std::shared_ptr<AssimpInstance> instance);
-    void updateObjectsFromBox3d();
-
     void drawBox3DBodyOutlines();
-
-    void cleanupBox3d();
-
-    void resetBox3d();
 
     uint32_t mImageIndex = 0;
 
