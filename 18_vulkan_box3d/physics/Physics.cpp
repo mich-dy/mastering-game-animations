@@ -1,5 +1,8 @@
 #include <Physics.h>
 
+#include <shared_mutex>
+#include <condition_variable>
+
 #include <Tools.h>
 
 bool Physics::initBox3d(VkRenderData &renderData, ModelInstanceCamData &modInstCamData) {
@@ -14,6 +17,13 @@ bool Physics::initBox3d(VkRenderData &renderData, ModelInstanceCamData &modInstC
 }
 
 void Physics::createBox3dPhysicsObject(VkRenderData &renderData, std::shared_ptr<AssimpInstance> instance) {
+  // needs a lock to avoid object updates during physics step
+  mPhysicsTimer.callExtFunctionLocked([&, this]() {
+    createBox3dPhysicsObjectImpl(renderData, instance);
+  });
+}
+
+void Physics::createBox3dPhysicsObjectImpl(VkRenderData &renderData, std::shared_ptr<AssimpInstance> instance) {
   InstanceSettings instSettings = instance->getInstanceSettings();
   std::shared_ptr<AssimpModel> model = instance->getModel();
   ModelSettings modelSettings = model->getModelSettings();
@@ -45,6 +55,7 @@ void Physics::createBox3dPhysicsObject(VkRenderData &renderData, std::shared_ptr
   shapeDef.density = 1.0f;
   shapeDef.baseMaterial.friction = modelSettings.msPhysicsFrictionCoeff;
   shapeDef.baseMaterial.restitution = modelSettings.msPhysicsRestitutionCoeff;
+  shapeDef.baseMaterial.rollingResistance = modelSettings.msPhysicsRollingResistance;
 
   b3Transform hullTransform{};
   hullTransform.p = Tools::glmToBox3d(modelSettings.msPhysicsHullOffset * instSettings.isScale);
@@ -93,15 +104,13 @@ void Physics::createBox3dPhysicsObject(VkRenderData &renderData, std::shared_ptr
 }
 
 void Physics::createBox3dPhysicsObjects(VkRenderData &renderData, ModelInstanceCamData &modInstCamData) {
+  std::unique_lock<std::shared_mutex> lock(modInstCamData.micMutex);
   for (const auto& model : modInstCamData.micModelList) {
     ModelSettings modelSettings = model->getModelSettings();
     if (modelSettings.msPhysicsEnabled) {
       std::vector<std::shared_ptr<AssimpInstance>> instances = modInstCamData.micAssimpInstancesPerModel[model->getModelFileName()];
       for (auto instance : instances) {
-        // needs a lock to avoid object updates during physics step
-        mPhysicsTimer.callExtFunctionLocked([&, this]() {
-          createBox3dPhysicsObject(renderData, instance);
-        });
+        createBox3dPhysicsObject(renderData, instance);
       }
     }
   }
@@ -117,6 +126,7 @@ void Physics::doBox3dStep(ModelInstanceCamData &modInstCamData) {
 }
 
 void Physics::updateObjectsFromBox3d(ModelInstanceCamData &modInstCamData) {
+  std::unique_lock<std::shared_mutex> lock(modInstCamData.micMutex);
   for (const auto& model : modInstCamData.micModelList) {
     ModelSettings modelSettings = model->getModelSettings();
     if (modelSettings.msPhysicsEnabled) {
@@ -161,6 +171,7 @@ void Physics::cleanupBox3d(VkRenderData &renderData, ModelInstanceCamData &modIn
   }
 
   // cleanup body ids of instances too
+  std::unique_lock<std::shared_mutex> lock(modInstCamData.micMutex);
   for (const auto& model : modInstCamData.micModelList) {
     ModelSettings modelSettings = model->getModelSettings();
     if (modelSettings.msPhysicsEnabled) {

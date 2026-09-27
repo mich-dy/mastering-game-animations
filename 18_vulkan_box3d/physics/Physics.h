@@ -28,4 +28,6 @@ class Physics {
   private:
     TimerFunc mPhysicsTimer{};
     b3WorldId mBox3DWorldId;
+
+    void createBox3dPhysicsObjectImpl(VkRenderData &renderData, std::shared_ptr<AssimpInstance> instance);
 };
