@@ -266,69 +266,84 @@ void VRHeadset::pollEvents() {
 }
 
 bool VRHeadset::draw(float deltaTime) {
-  if (!mRenderer->initDraw(deltaTime)) {
-    return false;
+  std::optional<bool> result;
+
+  result = mRenderer->initDraw(deltaTime);
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!mRenderer->acquireDesktopImage()) {
-    return false;
+  result = mRenderer->acquireDesktopImage();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!mRenderer->updateLevelAndModels(deltaTime)) {
-    return false;
+  result = mRenderer->updateLevelAndModels(deltaTime);
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!beginXRFrame()) {
-    return false;
+  result = beginXRFrame();
+  if (result.has_value()) {
+    return result.value();
   }
 
   // Camera update
   std::tie(mNearPlane, mFarPlane) = mRenderer->getNearAndFarPlane();
   createXRCameraMatrices();
-  if (!mRenderer->updateCamera(mProjViewMatrices, deltaTime)) {
-    return false;
+  result = mRenderer->updateCamera(mProjViewMatrices, deltaTime);
+  if (result.has_value()) {
+    return result.value();
   }
 
   calculateXRHandPositions();
-  if (!mRenderer->updateXRControllerPositions(mHandTransformMatrices)) {
-    return false;
+  result = mRenderer->updateXRControllerPositions(mHandTransformMatrices);
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!mRenderer->renderGraphics()) {
-    return false;
+  result = mRenderer->renderGraphics();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!renderXRFrame()) {
-    return false;
+  result = renderXRFrame();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!mRenderer->endRendering()) {
-    return false;
+  result = mRenderer->endRendering();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!mRenderer->submitGraphics()) {
-    return false;
+  result = mRenderer->submitGraphics();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!endXRFrame()) {
-    return false;
+  result = endXRFrame();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!mRenderer->checkForSelection()) {
-    return false;
+  result = mRenderer->checkForSelection();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!mRenderer->presentDesktopImage()) {
-    return false;
+  result = mRenderer->presentDesktopImage();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!mRenderer->finishDraw()) {
-    return false;
+  result = mRenderer->finishDraw();
+  if (result.has_value()) {
+    return result.value();
   }
 
   return true;
 }
-
 
 bool VRHeadset::createXRInstance() {
   std::strncpy(mXRAppInfo.applicationName, "Mastering C++ Game Animation Programming - VR", XR_MAX_APPLICATION_NAME_SIZE);
@@ -1252,7 +1267,7 @@ void VRHeadset::createXRCameraMatrices() {
   }
 }
 
-bool VRHeadset::beginXRFrame() {
+std::optional<bool> VRHeadset::beginXRFrame() {
   XrFrameWaitInfo frameWaitInfo{};
   frameWaitInfo.type = XR_TYPE_FRAME_WAIT_INFO;
 
@@ -1294,11 +1309,11 @@ bool VRHeadset::beginXRFrame() {
   mRenderLayerInfos = {};
   mRenderLayerInfos.layerProjectionViews.resize(mViewCount);
 
-  return true;
+  return std::nullopt;
 }
 
 
-bool VRHeadset::renderXRFrame() {
+std::optional<bool> VRHeadset::renderXRFrame() {
   XrSwapchainImageAcquireInfo acquireInfo{};
   acquireInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO;
 
@@ -1339,10 +1354,10 @@ bool VRHeadset::renderXRFrame() {
     mRenderer->copyToXRSwapchain(mSwapchain.swapchainImageViews.at(mColorImageIndex));
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool VRHeadset::endXRFrame() {
+std::optional<bool> VRHeadset::endXRFrame() {
   XrSwapchainImageReleaseInfo releaseInfo{};
   releaseInfo.type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO;
   XrResult result = xrReleaseSwapchainImage(mSwapchain.swapchain, &releaseInfo);
@@ -1371,7 +1386,7 @@ bool VRHeadset::endXRFrame() {
     return false;
   }
 
-  return true;
+  return std::nullopt;
 }
 
 void VRHeadset::destroyXRInstance() {

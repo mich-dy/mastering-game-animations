@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <tuple>
+#include <optional>
 
 #if defined(__ANDROID__)
 #include <jni.h>
@@ -52,9 +53,9 @@ class VRHeadset {
     std::shared_ptr<VkRenderer> mRenderer = nullptr;
     VkDevice mVulkanDevice = VK_NULL_HANDLE;
 
-    bool beginXRFrame();
-    bool renderXRFrame();
-    bool endXRFrame();
+    std::optional<bool> beginXRFrame();
+    std::optional<bool> renderXRFrame();
+    std::optional<bool> endXRFrame();
 
     void pollActions(XrTime predictedTime);
 

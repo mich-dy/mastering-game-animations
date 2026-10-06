@@ -10,6 +10,7 @@
 #include <chrono>
 #include <random>
 #include <tuple>
+#include <optional>
 
 #include <glm/glm.hpp>
 
@@ -85,17 +86,17 @@ class VkRenderer {
 
     bool draw(float deltaTime);
 
-    bool initDraw(float deltaTime);
-    bool acquireDesktopImage();
-    bool updateLevelAndModels(float deltaTime);
-    bool renderGraphics();
-    bool copyToXRSwapchain(VkImageView imageVIew);
-    bool updateCamera(XRProjectionViewMatrices &matrices, float deltaTime);
-    bool endRendering();
-    bool submitGraphics();
-    bool checkForSelection();
-    bool presentDesktopImage();
-    bool finishDraw();
+    std::optional<bool> initDraw(float deltaTime);
+    std::optional<bool> acquireDesktopImage();
+    std::optional<bool> updateLevelAndModels(float deltaTime);
+    std::optional<bool> renderGraphics();
+    std::optional<bool> copyToXRSwapchain(VkImageView imageVIew);
+    std::optional<bool> updateCamera(XRProjectionViewMatrices &matrices, float deltaTime);
+    std::optional<bool> endRendering();
+    std::optional<bool> submitGraphics();
+    std::optional<bool> checkForSelection();
+    std::optional<bool> presentDesktopImage();
+    std::optional<bool> finishDraw();
 
     bool updateXRControllerPositions(std::array<glm::mat4, 2> &transformMatrix);
     bool drawXRControllers(bool shadowMapPass = false, bool dynamicsShadows = false, uint32_t dynLight = 0);

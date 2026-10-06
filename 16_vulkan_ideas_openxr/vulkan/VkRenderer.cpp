@@ -4396,7 +4396,7 @@ bool VkRenderer::drawXRControllers(bool shadowMapPass, bool dynamcicShadows, uin
   return true;
 }
 
-bool VkRenderer::initDraw(float deltaTime) {
+std::optional<bool> VkRenderer::initDraw(float deltaTime) {
   if (!mApplicationRunning) {
     return false;
   }
@@ -4438,10 +4438,10 @@ bool VkRenderer::initDraw(float deltaTime) {
   mRenderData.rdPathFindingTime = 0.0f;
   mRenderData.rdLevelGroundNeighborUpdateTime = 0.0f;
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::acquireDesktopImage() {
+std::optional<bool> VkRenderer::acquireDesktopImage() {
   // wait for both fences before getting the new framebuffer image
   std::vector<VkFence> waitFences = {
     mRenderData.rdComputeFences.at(mRenderData.currentFrame),
@@ -4471,10 +4471,10 @@ bool VkRenderer::acquireDesktopImage() {
     }
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::updateLevelAndModels(float deltaTime) {
+std::optional<bool> VkRenderer::updateLevelAndModels(float deltaTime) {
   VkResult result = VK_ERROR_UNKNOWN;
 
   // calculate the size of the lookup matrix buffer over all animated instances
@@ -5386,10 +5386,10 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
     mGraphEditor->createNodeEditorWindow(mRenderData, mModelInstCamData);
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::renderGraphics() {
+std::optional<bool> VkRenderer::renderGraphics() {
   // start with graphics rendering
   VkResult result = vkResetFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdRenderFences.at(mRenderData.currentFrame));
   if (result != VK_SUCCESS) {
@@ -6600,10 +6600,10 @@ bool VkRenderer::renderGraphics() {
   );
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::updateCamera(XRProjectionViewMatrices &matrices, float deltaTime) {
+std::optional<bool> VkRenderer::updateCamera(XRProjectionViewMatrices &matrices, float deltaTime) {
   mRenderData.rdMatrixGenerateTimer.start();
   std::shared_ptr<Camera> cam = mModelInstCamData.micCameras.at(mModelInstCamData.micSelectedCamera);
   cam->updateCamera(mRenderData, deltaTime);
@@ -6706,19 +6706,19 @@ bool VkRenderer::updateCamera(XRProjectionViewMatrices &matrices, float deltaTim
 
   mRenderData.rdUploadToUBOTime += mRenderData.rdUploadToUBOTimer.stop();
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::endRendering() {
+std::optional<bool> VkRenderer::endRendering() {
   if (!CommandBuffer::end(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame))) {
     Logger::log(1, "%s error: failed to end ImGui command buffer\n", __FUNCTION__);
     return false;
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::submitGraphics() {
+std::optional<bool> VkRenderer::submitGraphics() {
   // submit command buffer
   VkSubmitInfo submitInfo{};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -6750,7 +6750,7 @@ bool VkRenderer::submitGraphics() {
     return false;
   }
 
-  return true;
+  return std::nullopt;
 }
 
 bool VkRenderer::updateXRControllerPositions(std::array<glm::mat4, 2> &transformMatrix) {
@@ -6828,7 +6828,7 @@ void VkRenderer::drawXRVisibilityMask() {
   }
 }
 
-bool VkRenderer::copyToXRSwapchain(VkImageView imageView) {
+std::optional<bool> VkRenderer::copyToXRSwapchain(VkImageView imageView) {
   // copy to Swapchain
   VkClearValue colorClearValue;
   colorClearValue.color = { { 0.25f, 0.25f, 0.25f, 1.0f } };
@@ -6881,10 +6881,10 @@ bool VkRenderer::copyToXRSwapchain(VkImageView imageView) {
 
   vkCmdEndRendering(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame));
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::checkForSelection() {
+std::optional<bool> VkRenderer::checkForSelection() {
   // we must wait for the image to be created before we can pick 
   if (mRenderData.rdApplicationMode == appMode::edit) {
     if (mMousePick) {
@@ -6918,10 +6918,10 @@ bool VkRenderer::checkForSelection() {
     }
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::presentDesktopImage() {
+std::optional<bool> VkRenderer::presentDesktopImage() {
   if (mRenderData.rdSkipDesktopMirror) {
     return true;
   }
@@ -6947,13 +6947,13 @@ bool VkRenderer::presentDesktopImage() {
     }
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::finishDraw() {
+std::optional<bool> VkRenderer::finishDraw() {
   mRenderData.currentFrame = (mRenderData.currentFrame + 1) % mRenderData.rdNumFramesInFlight;
 
-  return true;
+  return std::nullopt;
 }
 
 void VkRenderer::cleanup() {
