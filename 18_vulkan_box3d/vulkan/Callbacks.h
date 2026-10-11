@@ -69,9 +69,6 @@ using cameraCloneCallback = std::function<void()>;
 using cameraDeleteCallback = std::function<void()>;
 using cameraNameCheckCallback = std::function<bool(std::string)>;
 
-using octreeQueryBBoxCallback = std::function<std::set<int>(BoundingBox3D)>;
-using octreeFindAllIntersectionsCallback = std::function<std::set<std::pair<int, int>>()>;
-using octreeGetBoxesCallback = std::function<std::vector<BoundingBox3D>()>;
 using worldGetBoundariesCallback = std::function<std::shared_ptr<BoundingBox3D>()>;
 using triangleOctreeGetMeshesCallback = std::function<std::vector<MeshTriangle>(BoundingBox3D)>;
 using triangleOctreeChangeCallback = std::function<void(void)>;

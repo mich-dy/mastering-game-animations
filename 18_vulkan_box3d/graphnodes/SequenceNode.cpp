@@ -17,7 +17,7 @@ std::shared_ptr<GraphNodeBase> SequenceNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new SequenceNode(*this));
 }
 
-void SequenceNode::draw(ModelInstanceCamData modInstCamData) {
+void SequenceNode::draw(ModelInstanceCamData &modInstCamData) {
   ImNodes::BeginNode(getNodeId());
 
   ImNodes::BeginNodeTitleBar();

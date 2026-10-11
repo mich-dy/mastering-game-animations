@@ -305,6 +305,8 @@ YAML::Emitter& operator<<(YAML::Emitter& out, const ModelSettings& settings) {
     out << YAML::Value << settings.msPhysicsFrictionCoeff;
     out << YAML::Key << "physics-restitution-coeff";
     out << YAML::Value << settings.msPhysicsRestitutionCoeff;
+    out << YAML::Key << "physics-rolling-resistance";
+    out << YAML::Value << settings.msPhysicsRollingResistance;
   }
 
   return out;
@@ -1581,7 +1583,7 @@ int YamlParser::getShadowMapPCFRange() {
   return range;
 }
 
-void YamlParser::createInstanceToCamMap(ModelInstanceCamData modInstCamData) {
+void YamlParser::createInstanceToCamMap(ModelInstanceCamData &modInstCamData) {
   mInstanceToCamMap.clear();
   for (const auto& camera : modInstCamData.micCameras) {
     CameraSettings camSettings = camera->getCameraSettings();
@@ -1591,7 +1593,7 @@ void YamlParser::createInstanceToCamMap(ModelInstanceCamData modInstCamData) {
   }
 }
 
-bool YamlParser::createConfigFile(VkRenderData &renderData, ModelInstanceCamData modInstCamData) {
+bool YamlParser::createConfigFile(VkRenderData &renderData, ModelInstanceCamData &modInstCamData) {
   createInstanceToCamMap(modInstCamData);
 
   mYamlEmit << YAML::Comment("Application viewer config file");

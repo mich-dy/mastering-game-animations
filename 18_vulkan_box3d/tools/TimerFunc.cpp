@@ -15,7 +15,7 @@ void TimerFunc::timerFunction() {
     auto destTime = std::chrono::steady_clock::now() + std::chrono::microseconds(mTickInverse);
 
     if (!mFunctions.empty()) {
-      std::unique_lock<std::shared_mutex> timerLock(mFuncMutex);
+      std::lock_guard<std::mutex> timerLock(mFuncMutex);
       for (const auto& func : mFunctions) {
         if (func) {
           func();
@@ -27,19 +27,19 @@ void TimerFunc::timerFunction() {
 }
 
 void TimerFunc::callExtFunctionLocked(std::function<void()> func) {
-  std::unique_lock<std::shared_mutex> timerLock(mFuncMutex);
+  std::lock_guard<std::mutex> timerLock(mFuncMutex);
   if (func) {
     func();
   }
 }
 
 void TimerFunc::registerFunction(std::function<void()> func) {
-  std::unique_lock<std::shared_mutex> timerLock(mFuncMutex);
+  std::lock_guard<std::mutex> timerLock(mFuncMutex);
   mFunctions.emplace_back(func);
 }
 
 void TimerFunc::cleanupFunctions() {
-  std::unique_lock<std::shared_mutex> timerLock(mFuncMutex);
+  std::lock_guard<std::mutex> timerLock(mFuncMutex);
   mFunctions.clear();
 }
 

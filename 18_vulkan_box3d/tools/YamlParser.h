@@ -83,7 +83,7 @@ class YamlParser {
     int getShadowMapPCFRange();
 
     // saving
-    bool createConfigFile(VkRenderData &renderData, ModelInstanceCamData modInstCamData);
+    bool createConfigFile(VkRenderData &renderData, ModelInstanceCamData &modInstCamData);
     bool writeYamlFile(std::string fileName);
 
     // misc
@@ -91,7 +91,7 @@ class YamlParser {
     bool getValue(std::string key, std::string& value);
 
   private:
-    void createInstanceToCamMap(ModelInstanceCamData modInstCamData);
+    void createInstanceToCamMap(ModelInstanceCamData &modInstCamData);
     std::unordered_map<int, std::vector<std::string>> mInstanceToCamMap;
 
     std::string mYamlFileName;

@@ -21,7 +21,7 @@ class GraphNodeBase {
 
     // MUST be overridden
     virtual void update(float deltaTime) = 0;
-    virtual void draw(ModelInstanceCamData modInstCamData) = 0;
+    virtual void draw(ModelInstanceCamData &modInstCamData) = 0;
     virtual void activate() = 0;
     virtual void deactivate(bool informParentNodes = true) = 0;
     virtual bool isActive() = 0;

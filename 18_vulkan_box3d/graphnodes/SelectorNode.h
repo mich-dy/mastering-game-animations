@@ -8,7 +8,7 @@ class SelectorNode : public GraphNodeBase {
   public:
     SelectorNode(int nodeId, float waitTime = 3.0f, int numOut = 3);
 
-    virtual void draw(ModelInstanceCamData modInstCamData) override;
+    virtual void draw(ModelInstanceCamData &modInstCamData) override;
     virtual void update(float deltaTime) override;
     virtual void activate() override;
     virtual void deactivate(bool informParnetNodes ) override;

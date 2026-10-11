@@ -15,7 +15,7 @@ std::shared_ptr<GraphNodeBase> InstanceMovementNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new InstanceMovementNode(*this));
 }
 
-void InstanceMovementNode::draw(ModelInstanceCamData modInstCamData) {
+void InstanceMovementNode::draw(ModelInstanceCamData &modInstCamData) {
   ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp;
 
   ImNodes::BeginNode(getNodeId());

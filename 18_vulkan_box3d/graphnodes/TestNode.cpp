@@ -12,7 +12,7 @@ std::shared_ptr<GraphNodeBase> TestNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new TestNode(*this));
 }
 
-void TestNode::draw(ModelInstanceCamData modInstCamData) {
+void TestNode::draw(ModelInstanceCamData &modInstCamData) {
   ImNodes::BeginNode(getNodeId());
 
   ImNodes::BeginNodeTitleBar();

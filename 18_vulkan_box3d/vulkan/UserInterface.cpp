@@ -2383,6 +2383,16 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
         ImGui::SameLine();
         ImGui::SliderFloat("##PhysicsRestitution", &modelSettings.msPhysicsRestitutionCoeff,
           0.0f, 1.0f, "%.4f", flags);
+
+        if (modelSettings.msPhysicsHullType == physicsHullType::sphere) {
+          ImGui::AlignTextToFramePadding();
+          ImGui::Text("Rolling Resistance:");
+          ImGui::SameLine();
+          ImGui::SliderFloat("##PhysicsRollingResistance", &modelSettings.msPhysicsRollingResistance,
+            0.0f, 1.0f, "%.4f", flags);
+        } else {
+          modelSettings.msPhysicsRollingResistance = 0.0f;
+        }
       }
 
       if (selectedModel) {
@@ -2471,7 +2481,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::SameLine();
     ImGui::SliderFloat3("##LevelPos", glm::value_ptr(settings.lsWorldPosition),
       -150.0f, 150.0f, "%.3f", flags);
-    if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
       recreateLevelData = true;
     }
 
@@ -2480,7 +2490,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::SameLine();
     ImGui::SliderFloat3("##LevelRot", glm::value_ptr(settings.lsWorldRotation),
       -180.0f, 180.0f, "%.3f", flags);
-    if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
       recreateLevelData = true;
     }
 
@@ -2489,7 +2499,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::SameLine();
     ImGui::SliderFloat("##LevelScale", &settings.lsScale,
       0.001f, 10.0f, "%.4f", flags);
-    if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
       recreateLevelData = true;
     }
 
@@ -2517,7 +2527,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::SameLine();
     ImGui::SliderFloat("##MaxSlope", &renderData.rdMaxLevelGroundSlopeAngle,
       0.0f, 45.0f, "%.2f", flags);
-    if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
       recreateLevelData = true;
     }
 
@@ -2526,7 +2536,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::SameLine();
     ImGui::SliderFloat("##MaxStairHeight", &renderData.rdMaxStairstepHeight,
       0.1f, 3.0f, "%.2f", flags);
-    if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
       recreateLevelData = true;
     }
 
@@ -2559,7 +2569,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::Text("Octree Max Depth:  ");
     ImGui::SameLine();
     ImGui::SliderInt("##LevelOctreeMaxDepth", &renderData.rdLevelOctreeMaxDepth, 1, 10, "%d", flags);
-    if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
       recreateLevelData = true;
     }
 
@@ -2567,7 +2577,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::Text("Octree Threshold:  ");
     ImGui::SameLine();
     ImGui::SliderInt("##LevelOctreeThreshold", &renderData.rdLevelOctreeThreshold, 1, 20, "%d", flags);
-    if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
       recreateLevelData = true;
     }
 
@@ -4306,154 +4316,6 @@ void UserInterface::createDebugWindow(VkRenderData& renderData) {
   ImGui::Image(renderData.rdDynamicLightCombinedShadowData.descriptorSet, ImVec2(300, 300));
 
   ImGui::End();
-}
-
-void UserInterface::createPositionsWindow(VkRenderData& renderData, ModelInstanceCamData& modInstCamData) {
-  std::shared_ptr<BoundingBox3D> worldBoundaries = modInstCamData.micWorldGetBoundariesCallbackFunction();
-  // window closed
-  if (!mInstancePosWindowOpen) {
-    return;
-  }
-
-  ImGuiWindowFlags posWinFlags = 0;
-  ImGui::SetNextWindowBgAlpha(0.5f);
-
-  if (!ImGui::Begin("Instance Positions", &mInstancePosWindowOpen, posWinFlags)) {
-    // window collapsed
-    ImGui::End();
-    return;
-  }
-
-  if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)) {
-    // zoom in/out with mouse wheel
-    ImGuiIO& io = ImGui::GetIO();
-    mOctreeZoomFactor += 0.025f * io.MouseWheel;
-    mOctreeZoomFactor = std::clamp(mOctreeZoomFactor, 0.1f, 5.0f);
-
-    // rotate octree view when right mouse button is pressed
-    if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-      mOctreeRotation.y += io.MouseDelta.x;
-      mOctreeRotation.x += io.MouseDelta.y;
-    }
-
-    // move octree view when middle mouse button is pressed
-    if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-      mOctreeTranslation.x += io.MouseDelta.x;
-      mOctreeTranslation.y += io.MouseDelta.y;
-    }
-  }
-
-  glm::vec4 red = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-  glm::vec4 yellow = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-  glm::vec4 green = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-  glm::vec4 white = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-
-  mOctreeLines.vertices.clear();
-  // draw octree boxes first
-  const std::vector<BoundingBox3D> treeBoxes = modInstCamData.micOctreeGetBoxesCallbackFunction();
-  for (const auto& box : treeBoxes) {
-    AABB boxAABB{};
-    boxAABB.create(box.getFrontTopLeft());
-    boxAABB.addPoint(box.getFrontTopLeft() + box.getSize());
-
-    std::shared_ptr<VkSimpleMesh> instanceLines = boxAABB.getAABBLines(white);
-    mOctreeLines.vertices.insert(mOctreeLines.vertices.end(), instanceLines->vertices.begin(), instanceLines->vertices.end());
-  }
-
-  // draw instance AABBs second
-  for (const auto& instance : modInstCamData.micAssimpInstances) {
-    InstanceSettings instSettings = instance->getInstanceSettings();
-    int instanceId = instSettings.isInstanceIndexPosition;
-    // skip null instance
-    if (instanceId == 0) {
-      continue;
-    }
-
-    AABB instanceAABB = instance->getModel()->getAABB(instSettings);
-
-    const auto iter = std::find_if(modInstCamData.micInstanceCollisions.begin(), modInstCamData.micInstanceCollisions.end(),
-      [instanceId](std::pair<int, int> values) {
-        return instanceId == values.first || instanceId == values.second;
-      });
-
-    std::shared_ptr<VkSimpleMesh> instanceLines = nullptr;
-    if (iter != modInstCamData.micInstanceCollisions.end()) {
-      // colliding instances in red
-      instanceLines = instanceAABB.getAABBLines(red);
-    } else {
-      // all other instances in yellow
-      instanceLines = instanceAABB.getAABBLines(yellow);
-    }
-    mOctreeLines.vertices.insert(mOctreeLines.vertices.end(), instanceLines->vertices.begin(), instanceLines->vertices.end());
-
-    // draw a green box around the selected instance
-    if (modInstCamData.micSelectedInstance == instanceId) {
-      instanceAABB.setMinPos(instanceAABB.getMinPos() - glm::vec3(1.0f));
-      instanceAABB.setMaxPos(instanceAABB.getMaxPos() + glm::vec3(1.0f));
-      instanceLines = instanceAABB.getAABBLines(green);
-    }
-    mOctreeLines.vertices.insert(mOctreeLines.vertices.end(), instanceLines->vertices.begin(), instanceLines->vertices.end());
-  }
-
-  ImDrawList* drawList = ImGui::GetWindowDrawList();
-
-  ImVec2 cursorPos = ImGui::GetCursorScreenPos();
-  ImVec2 windowSize = ImGui::GetWindowSize();
-
-  ImVec2 drawArea = ImVec2(cursorPos.x + windowSize.x - 16.0f, cursorPos.y + windowSize.y - 32.0f);
-  ImVec2 drawAreaCenter = ImVec2(cursorPos.x + windowSize.x / 2.0f - 8.0f, cursorPos.y + windowSize.y / 2.0f - 16.0f);
-
-  drawList->AddRect(cursorPos, drawArea, IM_COL32(255, 255, 255, 192));
-  drawList->AddRectFilled(cursorPos, drawArea, IM_COL32(64, 64, 64, 128));
-  drawList->PushClipRect(cursorPos, drawArea, true);
-
-  mScaleMat = glm::scale(glm::mat4(1.0f), glm::vec3(mOctreeZoomFactor));
-  mRotationMat = glm::rotate(mScaleMat, glm::radians(mOctreeRotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-  mOctreeViewMat = glm::rotate(mRotationMat, glm::radians(mOctreeRotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-
-  for (int i = 0; i < mOctreeLines.vertices.size(); i += 2) {
-    VkSimpleVertex startVert = mOctreeLines.vertices.at(i);
-    VkSimpleVertex endVert = mOctreeLines.vertices.at(i+1);
-
-    glm::vec3 startPos = mOctreeViewMat * startVert.position;
-    glm::vec3 endPos = mOctreeViewMat * endVert.position;
-
-    ImVec2 pointStart = ImVec2(drawAreaCenter.x + startPos.x + mOctreeTranslation.x,
-      drawAreaCenter.y + startPos.z + mOctreeTranslation.y);
-    ImVec2 pointEnd = ImVec2(drawAreaCenter.x + endPos.x + mOctreeTranslation.x,
-      drawAreaCenter.y + endPos.z + mOctreeTranslation.y);
-
-    drawList->AddLine(pointStart, pointEnd,
-      ImColor(startVert.color.r, startVert.color.g, startVert.color.b, 0.6f));
-  }
-
-  if (renderData.rdDrawLevelWireframeMiniMap) {
-    for (int i = 0; i <  renderData.rdLevelWireframeMiniMapMesh->vertices.size(); i += 2) {
-      VkSimpleVertex startVert = renderData.rdLevelWireframeMiniMapMesh->vertices.at(i);
-      VkSimpleVertex endVert = renderData.rdLevelWireframeMiniMapMesh->vertices.at(i+1);
-
-      glm::vec3 startPos = mOctreeViewMat * startVert.position;
-      glm::vec3 endPos = mOctreeViewMat * endVert.position;
-
-      ImVec2 pointStart = ImVec2(drawAreaCenter.x + startPos.x + mOctreeTranslation.x,
-        drawAreaCenter.y + startPos.z + mOctreeTranslation.y);
-      ImVec2 pointEnd = ImVec2(drawAreaCenter.x + endPos.x + mOctreeTranslation.x,
-        drawAreaCenter.y + endPos.z + mOctreeTranslation.y);
-
-      drawList->AddLine(pointStart, pointEnd,
-        ImColor(startVert.color.r, startVert.color.g, startVert.color.b, 0.1f));
-    }
-  }
-
-  drawList->PopClipRect();
-
-  ImGui::End();
-}
-
-void UserInterface::resetPositionWindowOctreeView() {
-  mOctreeZoomFactor = 0.5f;
-  mOctreeRotation = glm::vec3(-65.0f, 55.0f, 0.0f);
-  mOctreeTranslation = glm::vec3(0.0f);
 }
 
 void UserInterface::createStatusBar(VkRenderData& renderData, ModelInstanceCamData& modInstCamData) {

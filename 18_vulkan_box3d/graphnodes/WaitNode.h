@@ -6,7 +6,7 @@ class WaitNode : public GraphNodeBase {
   public:
     WaitNode(int nodeId, float waitTime = 3.0f);
 
-    virtual void draw(ModelInstanceCamData modInstCamData) override;
+    virtual void draw(ModelInstanceCamData &modInstCamData) override;
     virtual void update(float deltaTime) override;
     virtual void activate() override;
     virtual void deactivate(bool informParentNodes = true) override;

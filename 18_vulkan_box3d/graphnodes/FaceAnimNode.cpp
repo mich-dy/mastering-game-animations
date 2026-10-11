@@ -18,7 +18,7 @@ std::shared_ptr<GraphNodeBase> FaceAnimNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new FaceAnimNode(*this));
 }
 
-void FaceAnimNode::draw(ModelInstanceCamData modInstCamData) {
+void FaceAnimNode::draw(ModelInstanceCamData &modInstCamData) {
   ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp;
 
   ImNodes::BeginNode(getNodeId());

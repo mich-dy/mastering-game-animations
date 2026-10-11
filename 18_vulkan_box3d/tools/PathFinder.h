@@ -7,7 +7,6 @@
 #include <memory>
 #include <glm/glm.hpp>
 
-#include <TriangleOctree.h>
 #include <BoundingBox3D.h>
 #include <VkRenderData.h>
 
@@ -29,7 +28,6 @@ struct NavData {
 
 class PathFinder {
   public:
-    void generateGroundTriangles(VkRenderData& renderData, std::shared_ptr<TriangleOctree> octree, BoundingBox3D worldbox);
     std::vector<int> getGroundTriangleNeighbors(int groundTriIndex);
 
     std::vector<int> findPath(int startTriIndex, int targetTriIndex);

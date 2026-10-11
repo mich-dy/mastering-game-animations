@@ -17,7 +17,7 @@ std::shared_ptr<GraphNodeBase> WaitNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new WaitNode(*this));
 }
 
-void WaitNode::draw(ModelInstanceCamData modInstCamData) {
+void WaitNode::draw(ModelInstanceCamData &modInstCamData) {
   ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp;
 
   ImNodes::BeginNode(getNodeId());

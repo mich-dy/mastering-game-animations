@@ -634,6 +634,7 @@ namespace YAML {
         node["physics-body-type"] = rhs.msPhysicsBodyType;
         node["physics-friction-coeff"] = rhs.msPhysicsFrictionCoeff;
         node["physics-restitution-coeff"] = rhs.msPhysicsRestitutionCoeff;
+        node["physics-rolling-resistance"] = rhs.msPhysicsRollingResistance;
       }
       Node clips = node["idle-walk-run-clips"];
       for (const auto& blend : rhs.msIWRBlendings) {
@@ -819,6 +820,12 @@ namespace YAML {
         } catch (...) {
           Logger::log(1, "%s warning: could not parse physics restitution coefficient, init with a default value\n", __FUNCTION__);
           rhs.msPhysicsRestitutionCoeff = defaultSettings.msPhysicsRestitutionCoeff;
+        }
+        try {
+          rhs.msPhysicsRollingResistance = node["physics-rolling-resistance"].as<float>();
+        } catch (...) {
+          Logger::log(1, "%s warning: could not parse physics rolling resistance, init with a default value\n", __FUNCTION__);
+          rhs.msPhysicsRollingResistance = defaultSettings.msPhysicsRollingResistance;
         }
       }
       return true;

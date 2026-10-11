@@ -55,8 +55,12 @@ struct ModelInstanceCamData {
   std::unordered_map<physicsHullType, std::string> micPhysicsHullTypeMap{};
   std::unordered_map<physicsBodyType, std::string> micPhysicsBodyTypeMap{};
 
-  /* we can only delete models and levels in Vulkan outside the command buffers,
-   * so let's use a separate pending list */
+  // save all objects deleted in the same frame to remove them all at once
+  std::unordered_set<std::shared_ptr<AssimpInstance>> micPendingDeleteAssimpInstances{};
+  std::unordered_set<std::string> micPendingDeleteAssimpInstancesModels{};
+
+  // we can only delete models and levels in Vulkan outside the command buffers,
+  // so let's use a separate pending list
   std::unordered_set<std::shared_ptr<AssimpModel>> micPendingDeleteAssimpModels{};
   std::unordered_set<std::shared_ptr<AssimpLevel>> micPendingDeleteAssimpLevels{};
 
@@ -98,10 +102,6 @@ struct ModelInstanceCamData {
   cameraNameCheckCallback micCameraNameCheckCallbackFunction;
 
   instanceGetPositionsCallback micInstanceGetPositionsCallbackFunction;
-
-  octreeQueryBBoxCallback micOctreeQueryBBoxCallbackFunction;
-  octreeFindAllIntersectionsCallback micOctreeFindAllIntersectionsCallbackFunction;
-  octreeGetBoxesCallback micOctreeGetBoxesCallbackFunction;
 
   worldGetBoundariesCallback micWorldGetBoundariesCallbackFunction;
 

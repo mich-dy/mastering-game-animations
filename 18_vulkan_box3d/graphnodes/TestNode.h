@@ -6,7 +6,7 @@ class TestNode : public GraphNodeBase {
   public:
     TestNode(int nodeId);
 
-    virtual void draw(ModelInstanceCamData modInstCamData) override;
+    virtual void draw(ModelInstanceCamData &modInstCamData) override;
     virtual void update(float deltaTime) override {};
     virtual void activate() override {};
     virtual void deactivate(bool informParentNodes) override {};

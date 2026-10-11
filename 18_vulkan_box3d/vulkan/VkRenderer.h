@@ -8,6 +8,8 @@
 #include <map>
 #include <chrono>
 #include <random>
+#include <optional>
+#include <unordered_set>
 
 #include <glm/glm.hpp>
 
@@ -35,9 +37,7 @@
 #include <SimpleSphereModel.h>
 #include <AssimpModel.h>
 #include <AssimpInstance.h>
-#include <Octree.h>
 #include <BoundingBox3D.h>
-#include <TriangleOctree.h>
 #include <GraphEditor.h>
 #include <SingleInstanceBehavior.h>
 #include <BehaviorManager.h>
@@ -66,15 +66,15 @@ class VkRenderer {
 
     bool draw(float deltaTime);
 
-    bool initDraw(float deltaTime);
-    bool acquireDesktopImage();
-    bool updateLevelAndModels(float deltaTime);
-    bool renderGraphics();
-    bool endRendering();
-    bool submitGraphics();
-    bool checkForSelection();
-    bool presentDesktopImage();
-    bool finishDraw();
+    std::optional<bool> initDraw(float deltaTime);
+    std::optional<bool> acquireDesktopImage();
+    std::optional<bool> updateLevelAndModels(float deltaTime);
+    std::optional<bool> renderGraphics();
+    std::optional<bool> endRendering();
+    std::optional<bool> submitGraphics();
+    std::optional<bool> checkForSelection();
+    std::optional<bool> presentDesktopImage();
+    std::optional<bool> finishDraw();
 
     void handleKeyEvents(int key, int scancode, int action, int mods);
     void handleMouseButtonEvents(int button, int action, int mods);
@@ -132,6 +132,9 @@ class VkRenderer {
     const int LIGHT_OBJECT_OFFSET = 1'000'000;
 
     void drawScene(bool shadowMapPass = false, uint32_t shadowMapLayer = 0);
+
+    void checkInstanceFellOutOfWorld(std::shared_ptr<AssimpInstance> instance);
+    void deletePendingInstances();
 
     Physics mPhysics{};
     SimpleCubeModel mCubeModel{};
@@ -245,27 +248,13 @@ class VkRenderer {
 
     std::vector<glm::vec3> getPositionOfAllInstances();
 
-    void initOctree(int thresholdPerBox, int maxDepth );
-    std::shared_ptr<Octree> mOctree = nullptr;
     std::shared_ptr<BoundingBox3D> mWorldBoundaries = nullptr;
 
     bool createAABBLookup(std::shared_ptr<AssimpModel> model);
     void createAABBDebugLiness(std::vector<std::shared_ptr<AssimpInstance>> instances, glm::vec4 aabbColor);
-    void createInstanceCollisionDebug();
-    bool createSelectedBoundingSpheres();
-    bool createCollidingBoundingSpheres();
-    bool createAllBoundingSpheres();
     std::map<int, std::vector<glm::vec4>> mBoundingSpheresPerInstance{};
 
-    bool checkForInstanceCollisions();
-    void checkForBorderCollisions();
-    void checkForBoundingSphereCollisions();
-    void reactToInstanceCollisions();
-
     void resetCollisionData();
-
-    void findInteractionInstances();
-    void createInteractionDebug();
 
     std::shared_ptr<GraphEditor> mGraphEditor = nullptr;
     void editGraph(std::string graphName);
@@ -280,19 +269,16 @@ class VkRenderer {
 
     void generateLevelVertexData();
     void generateLevelAABB();
-    void generateLevelOctree();
     void generateLevelWireframe();
 
     void resetLevelData();
-    void initTriangleOctree(int thresholdPerBox, int maxDepth);
-    std::shared_ptr<TriangleOctree> mTriangleOctree = nullptr;
 
     void checkForLevelCollisions();
+
     const float GRAVITY_CONSTANT = 9.81f;
 
     AABB mAllLevelAABB{};
     std::shared_ptr<VkSimpleMesh> mLevelAABBMesh = nullptr;
-    std::shared_ptr<VkSimpleMesh> mLevelOctreeMesh = nullptr;
     std::shared_ptr<VkSimpleMesh> mLevelWireframeMesh = nullptr;
     std::shared_ptr<VkSimpleMesh> mLevelCollidingTriangleMesh = nullptr;
 

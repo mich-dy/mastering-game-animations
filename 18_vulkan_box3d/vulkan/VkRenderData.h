@@ -13,6 +13,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <box3d/box3d.h>
+
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
@@ -25,6 +27,7 @@
 #include <Callbacks.h>
 #include <BoundingBox3D.h>
 #include <Timer.h>
+#include <TimerFunc.h>
 
 // morph animations only need those two
 struct VkMorphVertex {
@@ -400,8 +403,10 @@ struct VkRenderData {
   std::map<timeOfDay, TimeOfDayLightParameters> rdTimeOfDayLightSettings{};
 
   // Box3D
+  b3WorldId rdBox3DWorldId = b3_nullWorldId;
   std::atomic<bool> rdPhysicsRunning = { false };
   bool rdDrawModelPhysicsBodies = false;
+  TimerFunc rdPhysicsTimerFunc{};
 
   bool rdEnableInfiniteGrid = true;
   std::vector<TRSMatrixData> rdTRSData{};

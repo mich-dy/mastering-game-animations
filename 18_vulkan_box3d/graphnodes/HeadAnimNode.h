@@ -6,7 +6,7 @@ class HeadAnimNode : public GraphNodeBase {
   public:
     HeadAnimNode(int nodeId);
 
-    virtual void draw(ModelInstanceCamData modInstCamData) override;
+    virtual void draw(ModelInstanceCamData &modInstCamData) override;
     virtual void update(float deltaTime) override;
     virtual void activate() override;
     virtual void deactivate(bool informParentNodes) override;

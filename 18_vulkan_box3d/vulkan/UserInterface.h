@@ -25,8 +25,6 @@ class UserInterface {
     void createSettingsWindow(VkRenderData &renderData, ModelInstanceCamData &modInstCamData);
     void createDebugWindow(VkRenderData &renderData);
     void createStatusBar(VkRenderData &renderData, ModelInstanceCamData &modInstCamData);
-    void createPositionsWindow(VkRenderData &renderData, ModelInstanceCamData &modInstCamData);
-    void resetPositionWindowOctreeView();
 
     void updateDescriptorSets(VkRenderData& renderData);
 

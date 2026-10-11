@@ -54,7 +54,7 @@ void RandomWaitNode::calculateRandomWaitTime() {
   }
 }
 
-void RandomWaitNode::draw(ModelInstanceCamData modInstCamData) {
+void RandomWaitNode::draw(ModelInstanceCamData &modInstCamData) {
   ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp;
 
   ImNodes::BeginNode(getNodeId());

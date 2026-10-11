@@ -3,11 +3,16 @@
 
 #include <string>
 #include <vector>
+#include <array>
 #include <memory>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
+#include <optional>
 
 #include <glm/glm.hpp>
+
+#include <box3d/box3d.h>
 
 #include <Texture.h>
 #include <AssimpMesh.h>
@@ -43,11 +48,18 @@ class AssimpLevel {
 
     std::vector<VkMesh>& getLevelMeshes();
 
+    bool recalculateBox3dMesh(VkRenderData &renderData);
+    bool createBox3dMesh(VkRenderData &renderData);
+    void destroyBox3dMesh();
+
+    b3BodyId getBox3dBodyId();
+    std::unordered_set<int> getBox3dShapeIds();
+    std::optional<std::array<glm::vec3, 3>> getTriangleDateFromShapeAndIndex(int shapeId, int triangleIndex);
+
     void cleanup(VkRenderData &renderData);
 
 private:
     void processNode(VkRenderData &renderData, std::shared_ptr<AssimpNode> node, aiNode* aNode, const aiScene* scene, std::string assetDirectory);
-    bool createDescriptorSet(VkRenderData &renderData);
 
     unsigned int mTriangleCount = 0;
     unsigned int mVertexCount = 0;
@@ -78,4 +90,16 @@ private:
     VkTextureData mPlaceholderTexture{};
 
     AABB mLevelAABB{};
+
+    b3BodyId mBox3dBodyId = b3_nullBodyId;
+    std::vector<b3ShapeId> mBox3dShapes{};
+    std::unordered_set<int> mBox3dShapeIdSet{};
+
+    std::unordered_map<int, b3MeshData*> mBox3dShapeToMeshMap{};
+
+    std::vector<b3MeshData*> mBox3dMeshData{};
+    std::vector<std::vector<int32_t>> mBox3dMeshIndices{};
+    std::vector<std::vector<b3Vec3>> mBox3dMeshVertices{};
+    std::vector<std::vector<uint8_t>> mBox3dMaterialIndices{};
+    std::vector<b3SurfaceMaterial> mBox3dTriangleMaterials{};
 };

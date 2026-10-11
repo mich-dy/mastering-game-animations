@@ -22,7 +22,7 @@ std::shared_ptr<GraphNodeBase> SelectorNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new SelectorNode(*this));
 }
 
-void SelectorNode::draw(ModelInstanceCamData modInstCamData) {
+void SelectorNode::draw(ModelInstanceCamData &modInstCamData) {
   ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp;
 
   ImNodes::BeginNode(getNodeId());

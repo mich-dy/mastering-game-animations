@@ -57,6 +57,8 @@ struct ModelSettings {
   physicsBodyType msPhysicsBodyType = physicsBodyType::staticBody;
   float msPhysicsFrictionCoeff = 1.0f;
   float msPhysicsRestitutionCoeff = 0.0f;
+  // spheres/capsules only
+  float msPhysicsRollingResistance = 0.0f;
 
   bool msPreviewMode = false;
 };

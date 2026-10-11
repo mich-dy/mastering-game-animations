@@ -20,7 +20,7 @@ std::shared_ptr<GraphNodeBase> HeadAnimNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new HeadAnimNode(*this));
 }
 
-void HeadAnimNode::draw(ModelInstanceCamData modInstCamData) {
+void HeadAnimNode::draw(ModelInstanceCamData &modInstCamData) {
   ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp;
 
   ImNodes::BeginNode(getNodeId());

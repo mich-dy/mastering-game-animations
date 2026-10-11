@@ -4,7 +4,7 @@
 #include <atomic>
 #include <thread>
 #include <vector>
-#include <shared_mutex>
+#include <mutex>
 
 class TimerFunc {
   public:
@@ -30,5 +30,5 @@ class TimerFunc {
     unsigned int mTickInverse = calculateTickInverse(DEFAULT_TICKS_PER_SECOND);
 
     std::vector<std::function<void(void)>> mFunctions {};
-    std::shared_mutex mFuncMutex;
+    std::mutex mFuncMutex;
 };

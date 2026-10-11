@@ -9,7 +9,7 @@ std::shared_ptr<GraphNodeBase> RootNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new RootNode(*this));
 }
 
-void RootNode::draw(ModelInstanceCamData modInstCamData) {
+void RootNode::draw(ModelInstanceCamData &modInstCamData) {
   ImNodes::BeginNode(getNodeId());
 
   ImNodes::BeginNodeTitleBar();

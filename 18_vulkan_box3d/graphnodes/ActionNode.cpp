@@ -14,7 +14,7 @@ std::shared_ptr<GraphNodeBase> ActionNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new ActionNode(*this));
 }
 
-void ActionNode::draw(ModelInstanceCamData modInstCamData) {
+void ActionNode::draw(ModelInstanceCamData &modInstCamData) {
   ImNodes::BeginNode(getNodeId());
 
   ImNodes::BeginNodeTitleBar();

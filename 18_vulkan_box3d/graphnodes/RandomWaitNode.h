@@ -7,7 +7,7 @@ class RandomWaitNode : public GraphNodeBase {
     RandomWaitNode(int nodeId, float minWaitTime = 3.0f, float maxWaitTime = 5.0f);
     explicit RandomWaitNode(const RandomWaitNode& orig);
 
-    virtual void draw(ModelInstanceCamData modInstCamData) override;
+    virtual void draw(ModelInstanceCamData &modInstCamData) override;
     virtual void update(float deltaTime) override;
     virtual void activate() override;
     virtual void deactivate(bool informParentNodes = true) override;

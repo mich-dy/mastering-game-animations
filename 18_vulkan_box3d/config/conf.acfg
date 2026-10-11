@@ -5,10 +5,10 @@ settings:
   near-clip-plane: 0.4
   far-clip-plane: 1000
   orth-nearfar-clip-plane: 40
-  selected-model: 5
-  selected-instance: 15
+  selected-model: 1
+  selected-instance: 3
   selected-camera: 0
-  selected-level: 0
+  selected-level: 1
   selected-dynamic-light: 0
   highlight-selection: false
   collision-enabled: 0
@@ -31,13 +31,13 @@ settings:
   time-of-day-enabled: false
   time-of-day-scaling: 10
   time-of-day-preset: 3
-  ssao-enabled: true
+  ssao-enabled: false
   ssao-radius: 5
   ssao-bias: 0.1
   ssao-exponent: 4
   ssao-blur-enabled: true
   ssao-blur-radius: 3
-  shadowmap-enabled: true
+  shadowmap-enabled: false
   shadowmap-split-lambda: 0.867
   shadowmap-constant-bias: 1.25
   shadowmap-slope-bias: 1.75
@@ -45,11 +45,19 @@ settings:
   shadowmap-pcf-scale: 1
   shadowmap-pcf-range: 1
 
+levels:
+  - level-name: de_dust.glb
+    level-file: assets/level/de_dust.glb
+    position: [0, 0, 0]
+    rotation: [0, 0, 0]
+    scale: 5
+    swap-axes: false
+
 cameras:
   - camera-name: FreeCam
-    position: [20.273983, 24.841578, 2.6044698]
-    view-azimuth: 272.9865
-    view-elevation: -49.499714
+    position: [60.4141, 91.59671, 59.866478]
+    view-azimuth: 322.8887
+    view-elevation: -46.999752
     camera-type: 0
     camera-projection: 0
     field-of-view: 89
@@ -68,32 +76,7 @@ models:
     physics-body-type: 2
     physics-friction-coeff: 1
     physics-restitution-coeff: 0.2
-  - model-name: plane.glb
-    model-file: assets/plane/plane.glb
-    is-nav-target: false
-    forward-speed-factor: 4
-    physics-enabled: true
-    physics-hull-type: 1
-    physics-hull-size: [7.2, 0.1, 7.2]
-    physics-hull-offset: [0, 0, 0]
-    physics-hull-rotation: [0, 0, 0]
-    physics-hull-scale: [1, 1, 1]
-    physics-body-type: 0
-    physics-friction-coeff: 0.9
-    physics-restitution-coeff: 0
-  - model-name: cuboid2.glb
-    model-file: assets/box/cuboid2.glb
-    is-nav-target: false
-    forward-speed-factor: 4
-    physics-enabled: true
-    physics-hull-type: 1
-    physics-hull-size: [4.2, 1, 1]
-    physics-hull-offset: [3.2, 0, 0]
-    physics-hull-rotation: [0, 0, 0]
-    physics-hull-scale: [1, 1, 1]
-    physics-body-type: 2
-    physics-friction-coeff: 1
-    physics-restitution-coeff: 0.5
+    physics-rolling-resistance: 0
   - model-name: box2.glb
     model-file: assets/box/box2.glb
     is-nav-target: false
@@ -107,6 +90,7 @@ models:
     physics-body-type: 2
     physics-friction-coeff: 0.8
     physics-restitution-coeff: 0.5
+    physics-rolling-resistance: 0
   - model-name: sphere.glb
     model-file: assets/sphere/sphere.glb
     is-nav-target: false
@@ -120,125 +104,16 @@ models:
     physics-body-type: 2
     physics-friction-coeff: 1
     physics-restitution-coeff: 0.7
+    physics-rolling-resistance: 0.25
 
 node-trees:
   []
 
 instances:
   - model-file: box.glb
-    position: [4.216, 9.178051, 2.055668]
-    rotation: [-47.026505, 0, 20.262442]
-    scale: 1
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: box.glb
-    position: [2.0716472, 16.723911, -14.19234]
-    rotation: [-1.8106943, 0, 7.728841]
-    scale: 1
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: box.glb
-    position: [-3.0727458, 12.27954, -2.0355484]
-    rotation: [-87.43825, 0, 40.798573]
-    scale: 1
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: box.glb
-    position: [2.3221095, 13.547461, 10.4195595]
-    rotation: [-16.24962, 0, -34.078186]
-    scale: 1
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: plane.glb
-    position: [0, 0, 0]
-    rotation: [0, 0, 0]
-    scale: 2.25
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: plane.glb
-    position: [0.05430771, 3.6619213, -13.425843]
-    rotation: [30, 0, 0]
-    scale: 1
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: plane.glb
-    position: [0.1421292, 3.821964, 13.452821]
-    rotation: [-30, 0, 0]
-    scale: 1
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: box.glb
-    position: [-11.043584, 12.27954, 7.5151405]
-    rotation: [-131.73991, 0, -22.422905]
-    scale: 1.3999997
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: box.glb
-    position: [-2.5986898, 9.178051, 5.1200314]
+    position: [25.599485, 44.35852, 37.01492]
     rotation: [-50.634575, 0, -1.5144284]
-    scale: 2.8750024
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: box.glb
-    position: [-11.914231, 9.178051, -6.1725674]
-    rotation: [-21.226503, 0, -54.236927]
-    scale: 1.4499997
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: cuboid2.glb
-    position: [-2.6146553, 17.948076, -5.2347403]
-    rotation: [-22.103886, 0, -29.42774]
-    scale: 1
+    scale: 4.9750104
     swap-axes: false
     1st-anim-clip-number: 0
     2nd-anim-clip-number: 0
@@ -247,9 +122,9 @@ instances:
     enable-navigation: false
     path-target-instance: -1
   - model-file: box2.glb
-    position: [3.0767138, 11.866059, 7.3062563]
+    position: [39.191063, 68.29164, 37.79337]
     rotation: [-28.856207, 0, 31.585093]
-    scale: 1
+    scale: 2.3500004
     swap-axes: false
     1st-anim-clip-number: 0
     2nd-anim-clip-number: 0
@@ -258,9 +133,9 @@ instances:
     enable-navigation: false
     path-target-instance: -1
   - model-file: sphere.glb
-    position: [0.88356596, 11.839072, 14.545978]
+    position: [53.60048, 48.137432, 18.612396]
     rotation: [0, 0, 0]
-    scale: 1
+    scale: 4.475009
     swap-axes: false
     1st-anim-clip-number: 0
     2nd-anim-clip-number: 0
@@ -268,47 +143,3 @@ instances:
     anim-blend-factor: 0
     enable-navigation: false
     path-target-instance: -1
-  - model-file: sphere.glb
-    position: [-4.9967957, 14.086607, -16.701756]
-    rotation: [0, 0, 0]
-    scale: 2.575001
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-  - model-file: sphere.glb
-    position: [3.8928497, 3.481512, 1.9524401]
-    rotation: [21.789948, 0, 9.398045]
-    scale: 1.5500288
-    swap-axes: false
-    1st-anim-clip-number: 0
-    2nd-anim-clip-number: 0
-    anim-clip-speed: 1
-    anim-blend-factor: 0
-    enable-navigation: false
-    path-target-instance: -1
-
-dynamic-lights:
-  - position: [-0.89663917, 22.35891, 7.8750286]
-    rotation: [180, 0, 0]
-    enabled: true
-    shadow-enabled: true
-    type: 1
-    diffuse-color: [0, 1, 1]
-    distance: 282.609
-    max-distance: 100
-    spot-cutoff-angle: 31.478
-    spot-outer-cutoff-angle: 32.522
-  - position: [2.028221, 23.851583, -3.3338683]
-    rotation: [180, 0, 0]
-    enabled: true
-    shadow-enabled: true
-    type: 1
-    diffuse-color: [0, 1, 0]
-    distance: 282.609
-    max-distance: 100
-    spot-cutoff-angle: 31.478
-    spot-outer-cutoff-angle: 32.522

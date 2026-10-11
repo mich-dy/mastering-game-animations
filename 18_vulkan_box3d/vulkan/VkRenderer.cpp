@@ -2,12 +2,14 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 #include <ctime>
 #include <cstdlib>
 #include <algorithm>
 #include <filesystem>
-#include <set>
+#include <array>
+#include <tuple>
 
 #define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
@@ -94,15 +96,6 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
   mWorldBoundaries = std::make_shared<BoundingBox3D>(mRenderData.rdDefaultWorldStartPos, mRenderData.rdDefaultWorldSize);
   mRenderData.rdWorldStartPos = mWorldBoundaries->getFrontTopLeft();
   mRenderData.rdWorldSize = mWorldBoundaries->getSize();
-  initOctree(mRenderData.rdOctreeThreshold, mRenderData.rdOctreeMaxDepth);
-  Logger::log(1, "%s: octree initialized\n", __FUNCTION__);
-
-  initTriangleOctree(mRenderData.rdLevelOctreeThreshold, mRenderData.rdLevelOctreeMaxDepth);
-  Logger::log(1, "%s: triangle octree initialized\n", __FUNCTION__);
-
-  mModelInstCamData.micOctreeFindAllIntersectionsCallbackFunction = [this]() { return mOctree->findAllIntersections(); };
-  mModelInstCamData.micOctreeGetBoxesCallbackFunction = [this]() { return mOctree->getTreeBoxes(); };
-  mModelInstCamData.micWorldGetBoundariesCallbackFunction = [this]() { return getWorldBoundaries(); };
 
   // register instance/model callbacks
   mModelInstCamData.micModelCheckCallbackFunction = [this](std::string fileName) { return hasModel(fileName); };
@@ -138,7 +131,6 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
   mModelInstCamData.micCameraNameCheckCallbackFunction = [this](std::string cameraName) { return checkCameraNameUsed(cameraName); };
 
   mModelInstCamData.micInstanceGetPositionsCallbackFunction = [this]() { return getPositionOfAllInstances(); };
-  mModelInstCamData.micOctreeQueryBBoxCallbackFunction = [this](BoundingBox3D box) { return mOctree->query(box); };
 
   mModelInstCamData.micEditNodeGraphCallbackFunction = [this](std::string graphName) { editGraph(graphName); };
   mModelInstCamData.micCreateEmptyNodeGraphCallbackFunction= [this]() { return createEmptyGraph(); };
@@ -164,7 +156,7 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
   mModelInstCamData.micGetNavTargetsCallbackFunction = [this]() { return getNavTargets(); };
 
   mModelInstCamData.micResetPhysicsCallbackFunction = [this]() { mPhysics.resetBox3d(mRenderData, mModelInstCamData); };
-  mModelInstCamData.micSingleStepPhysicsCallbackFunction = [this]() { mPhysics.doBox3dStep(mModelInstCamData); };
+  mModelInstCamData.micSingleStepPhysicsCallbackFunction = [this]() { mPhysics.updateBox3dPhysics(mRenderData, mModelInstCamData, true); };
   mModelInstCamData.micBakePhyiscsDataCallbackFunction = [this]() { mPhysics.createBox3dPhysicsObjects(mRenderData, mModelInstCamData); };
 
   mRenderData.rdAppExitCallbackFunction = [this]() { doExitApplication(); };
@@ -252,7 +244,6 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
   mLineMesh = std::make_shared<VkSimpleMesh>();
   mAABBMesh = std::make_shared<VkSimpleMesh>();
   mLevelAABBMesh = std::make_shared<VkSimpleMesh>();
-  mLevelOctreeMesh = std::make_shared<VkSimpleMesh>();
   mLevelWireframeMesh = std::make_shared<VkSimpleMesh>();
   mLevelCollidingTriangleMesh = std::make_shared<VkSimpleMesh>();
   mIKFootPointMesh = std::make_shared<VkSimpleMesh>();
@@ -323,6 +314,12 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
   }
   Logger::log(1, "%s: light mode '%s' loaded\n", __FUNCTION__, lightModelName.c_str());
 
+  // init physics
+  // must be done before loading the config
+  if (!mPhysics.initBox3d(mRenderData, mModelInstCamData)) {
+    return false;
+  }
+
   // try to load the default configuration file
   if (loadConfigFile(mDefaultConfigFileName)) {
     Logger::log(1, "%s: loaded default config file '%s'\n", __FUNCTION__, mDefaultConfigFileName.c_str());
@@ -341,11 +338,6 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
 
   // shadow maps need camera, so do after config creation
   updateShadowMapCascades();
-
-  // start physics
-  if (!mPhysics.initBox3d(mRenderData, mModelInstCamData)) {
-    return false;
-  }
 
   mRenderData.rdFrameTimer.start();
 
@@ -436,7 +428,6 @@ bool VkRenderer::loadConfigFile(std::string configFileName) {
   // we delete all models and instances at this point, the requesting dialog has been confirmed
   removeAllModelsAndInstances();
 
-  // reset octree display
   resetLevelData();
 
   // load level data
@@ -665,6 +656,10 @@ bool VkRenderer::loadConfigFile(std::string configFileName) {
     }
   }
 
+  // reset physics on load
+  mRenderData.rdPhysicsRunning = false;
+  mPhysics.createBox3dPhysicsObjects(mRenderData, mModelInstCamData);
+  mPhysics.resetBox3d(mRenderData, mModelInstCamData);
 
   // restore hightlight status, set default edit mode
   mRenderData.rdHighlightSelectedInstance = parser.getHighlightActivated();
@@ -787,9 +782,10 @@ void VkRenderer::redoLastOperation() {
 void VkRenderer::addNullModelAndInstance() {
   // create an empty null model and an instance from it
   std::shared_ptr<AssimpModel> nullModel = std::make_shared<AssimpModel>();
+  std::shared_ptr<AssimpInstance> nullInstance = std::make_shared<AssimpInstance>(nullModel);
+
   mModelInstCamData.micModelList.emplace_back(nullModel);
 
-  std::shared_ptr<AssimpInstance> nullInstance = std::make_shared<AssimpInstance>(nullModel);
   mModelInstCamData.micAssimpInstancesPerModel[nullModel->getModelFileName()].emplace_back(nullInstance);
   mModelInstCamData.micAssimpInstances.emplace_back(nullInstance);
   assignInstanceIndices();
@@ -981,6 +977,7 @@ bool VkRenderer::addModel(std::string modelFileName, bool addInitialInstance, bo
 
 void VkRenderer::addExistingModel(std::shared_ptr<AssimpModel> model, int indexPos) {
   Logger::log(2, "%s: inserting model %s on pos %i\n", __FUNCTION__, model->getModelFileName().c_str(), indexPos);
+
   mModelInstCamData.micModelList.insert(mModelInstCamData.micModelList.begin() + indexPos, model);
 }
 
@@ -1064,6 +1061,7 @@ std::shared_ptr<AssimpInstance> VkRenderer::getInstanceById(int instanceId) {
 
 std::shared_ptr<AssimpInstance> VkRenderer::addInstance(std::shared_ptr<AssimpModel> model, bool withUndo) {
   std::shared_ptr<AssimpInstance> newInstance = std::make_shared<AssimpInstance>(model);
+
   mModelInstCamData.micAssimpInstances.emplace_back(newInstance);
   mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()].emplace_back(newInstance);
 
@@ -1090,6 +1088,7 @@ std::shared_ptr<AssimpInstance> VkRenderer::addInstance(std::shared_ptr<AssimpMo
 
 void VkRenderer::addExistingInstance(std::shared_ptr<AssimpInstance> instance, int indexPos, int indexPerModelPos) {
   Logger::log(2, "%s: inserting instance on pos %i\n", __FUNCTION__, indexPos);
+
   mModelInstCamData.micAssimpInstances.insert(mModelInstCamData.micAssimpInstances.begin() + indexPos, instance);
   mModelInstCamData.micAssimpInstancesPerModel[instance->getModel()->getModelFileName()].insert(
     mModelInstCamData.micAssimpInstancesPerModel[instance->getModel()->getModelFileName()].begin() +
@@ -1103,7 +1102,7 @@ void VkRenderer::addInstances(std::shared_ptr<AssimpModel> model, int numInstanc
   size_t animClipNum = model->getAnimClips().size();
   std::vector<std::shared_ptr<AssimpInstance>> newInstances;
 
-  std::uniform_int_distribution<int> randomPosInts(-125, 125);
+  std::uniform_int_distribution<int> randomPosInts(-250, 250);
   std::uniform_int_distribution<int> randomRotInts(-180, 180);
   std::uniform_int_distribution<int> randomAnimInts(0, animClipNum - 1);
   std::uniform_real_distribution<float> randomSpeedFloats(0.5f, 1.25f);
@@ -1125,6 +1124,7 @@ void VkRenderer::addInstances(std::shared_ptr<AssimpModel> model, int numInstanc
       newInstance->setInstanceSettings(instSettings);
     }
     newInstances.emplace_back(newInstance);
+
     mModelInstCamData.micAssimpInstances.emplace_back(newInstance);
     mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()].emplace_back(newInstance);
   }
@@ -1177,6 +1177,42 @@ void VkRenderer::deleteInstance(std::shared_ptr<AssimpInstance> instance, bool w
   updateTriangleCount();
 }
 
+void VkRenderer::deletePendingInstances() {
+  std::unordered_set<std::shared_ptr<AssimpInstance>> &instances = mModelInstCamData.micPendingDeleteAssimpInstances;
+
+  if (instances.size() == 0) {
+    return;
+  }
+
+  mModelInstCamData.micAssimpInstances.erase(
+    std::remove_if(
+      mModelInstCamData.micAssimpInstances.begin(),
+      mModelInstCamData.micAssimpInstances.end(),
+    [instances] (std::shared_ptr<AssimpInstance> inst) {
+      return instances.contains(inst);
+    }),
+    mModelInstCamData.micAssimpInstances.end());
+
+  for (const auto& modelName : mModelInstCamData.micPendingDeleteAssimpInstancesModels) {
+    mModelInstCamData.micAssimpInstancesPerModel[modelName].erase(
+      std::remove_if(
+        mModelInstCamData.micAssimpInstancesPerModel[modelName].begin(),
+        mModelInstCamData.micAssimpInstancesPerModel[modelName].end(),
+        [instances](std::shared_ptr<AssimpInstance> inst) {
+          return instances.contains(inst);
+        }),
+        mModelInstCamData.micAssimpInstancesPerModel[modelName].end());
+  }
+
+  mModelInstCamData.micPendingDeleteAssimpInstances.clear();
+  mModelInstCamData.micPendingDeleteAssimpInstancesModels.clear();
+
+  mModelInstCamData.micSelectedInstance = 0;
+
+  assignInstanceIndices();
+  updateTriangleCount();
+}
+
 void VkRenderer::cloneInstance(std::shared_ptr<AssimpInstance> instance) {
   std::shared_ptr<AssimpModel> currentModel = instance->getModel();
   std::shared_ptr<AssimpInstance> newInstance = std::make_shared<AssimpInstance>(currentModel);
@@ -1215,7 +1251,7 @@ void VkRenderer::cloneInstances(std::shared_ptr<AssimpInstance> instance, int nu
   std::shared_ptr<AssimpModel> model = instance->getModel();
   std::vector<std::shared_ptr<AssimpInstance>> newInstances;
 
-  std::uniform_int_distribution<int> randomPosInts(-125, 125);
+  std::uniform_int_distribution<int> randomPosInts(-250, 250);
   std::uniform_int_distribution<int> randomRotInts(-180, 180);
 
   for (int i = 0; i < numClones; ++i) {
@@ -1232,6 +1268,7 @@ void VkRenderer::cloneInstances(std::shared_ptr<AssimpInstance> instance, int nu
     newInstance->setInstanceSettings(instSettings);
 
     newInstances.emplace_back(newInstance);
+
     mModelInstCamData.micAssimpInstances.emplace_back(newInstance);
     mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()].emplace_back(newInstance);
   }
@@ -1286,23 +1323,6 @@ void VkRenderer::editGraph(std::string graphName) {
 std::shared_ptr<SingleInstanceBehavior> VkRenderer::createEmptyGraph() {
   mGraphEditor->createEmptyGraph();
   return mGraphEditor->getData();
-}
-
-void VkRenderer::initOctree(int thresholdPerBox, int maxDepth) {
-  mOctree = std::make_shared<Octree>(mWorldBoundaries, thresholdPerBox, maxDepth);
-
-  // octree needs to get bounding box of the instances
-  mOctree->mInstanceGetBoundingBoxCallbackFunction = [this](int instanceId) {
-    return mModelInstCamData.micAssimpInstances.at(instanceId)->getBoundingBox();
-  };
-}
-
-std::shared_ptr<BoundingBox3D> VkRenderer::getWorldBoundaries() {
-  return mWorldBoundaries;
-}
-
-void VkRenderer::initTriangleOctree(int thresholdPerBox, int maxDepth) {
-  mTriangleOctree = std::make_shared<TriangleOctree>(mWorldBoundaries, thresholdPerBox, maxDepth);
 }
 
 void VkRenderer::addBehavior(std::shared_ptr<AssimpInstance> instance, std::shared_ptr<SingleInstanceBehavior> behavior) {
@@ -1518,6 +1538,7 @@ void VkRenderer::deleteLevel(std::string levelFileName) {
   if (level && (level->getTriangleCount() > 0)) {
     Logger::log(1, "%s: -- adding level %s to pending\n", __FUNCTION__, level->getLevelFileName().c_str());
     mModelInstCamData.micPendingDeleteAssimpLevels.insert(level);
+    level->destroyBox3dMesh();
   }
 
   mModelInstCamData.micLevels.erase(
@@ -1605,25 +1626,18 @@ void VkRenderer::centerDynLight(std::shared_ptr<AssimpDynLight> light) {
 }
 
 void VkRenderer::generateLevelVertexData() {
+  for (std::shared_ptr<AssimpLevel> level : mModelInstCamData.micLevels) {
+    if (level->getTriangleCount() > 0) {
+      if (!level->recalculateBox3dMesh(mRenderData)) {
+        Logger::log(1, "%s error: Box3D mesh regeneration for level '%s' failed\n", __FUNCTION__, level->getLevelFileName().c_str());
+      }
+    }
+  }
+
   generateLevelAABB();
-  generateLevelOctree();
   generateLevelWireframe();
-  generateGroundTriangleData();
 
   updateLevelTriangleCount();
-}
-
-void VkRenderer::generateGroundTriangleData() {
-  mPathFinder.generateGroundTriangles(mRenderData, mTriangleOctree, *getWorldBoundaries());
-
-  std::shared_ptr<VkSimpleMesh> groundMesh = mPathFinder.getGroundLevelMesh();
-  mGroundMeshVertexCount = groundMesh->vertices.size();
-
-  mRenderData.rdUploadToVBOTimer.start();
-  for (int i = 0; i < mRenderData.rdNumFramesInFlight; ++i) {
-    VertexBuffer::uploadData(mRenderData, mRenderData.rdGroundMeshVertexBuffers.at(i), groundMesh->vertices);
-  }
-  mRenderData.rdUploadToVBOTime += mRenderData.rdUploadToVBOTimer.stop();
 }
 
 void VkRenderer::generateLevelAABB() {
@@ -1643,12 +1657,9 @@ void VkRenderer::generateLevelAABB() {
     mAllLevelAABB.addPoint(level->getAABB().getMaxPos());
   }
 
-  // update Octree too
   mWorldBoundaries = std::make_shared<BoundingBox3D>(mAllLevelAABB.getMinPos(), mAllLevelAABB.getMaxPos() - mAllLevelAABB.getMinPos());
   mRenderData.rdWorldStartPos = mWorldBoundaries->getFrontTopLeft();
   mRenderData.rdWorldSize = mWorldBoundaries->getSize();
-  initOctree(mRenderData.rdOctreeThreshold, mRenderData.rdOctreeMaxDepth);
-  initTriangleOctree(mRenderData.rdLevelOctreeThreshold, mRenderData.rdLevelOctreeMaxDepth);
 
   glm::vec4 levelAABBColor = glm::vec4(0.0f, 1.0f, 0.5, 1.0f);
   mLevelAABBMesh = mAllLevelAABB.getAABBLines(levelAABBColor);
@@ -1657,76 +1668,6 @@ void VkRenderer::generateLevelAABB() {
     mRenderData.rdUploadToVBOTimer.start();
     for (int i = 0; i < mRenderData.rdNumFramesInFlight; ++i) {
       VertexBuffer::uploadData(mRenderData, mRenderData.rdLevelAABBVertexBuffers.at(i), mLevelAABBMesh->vertices);
-    }
-    mRenderData.rdUploadToVBOTime += mRenderData.rdUploadToVBOTimer.stop();
-  }
-}
-
-void VkRenderer::generateLevelOctree() {
-  mTriangleOctree->clear();
-
-  int index = 0;
-  for (const auto& level : mModelInstCamData.micLevels) {
-    if (level->getTriangleCount() == 0) {
-      continue;
-    }
-    Logger::log(1, "%s: generating octree data for level '%s'\n", __FUNCTION__, level->getLevelFileName().c_str());
-    std::vector<VkMesh> levelMeshes = level->getLevelMeshes();
-    glm::mat4 transformMat = level->getWorldTransformMatrix();
-    glm::mat3 normalMat = level->getNormalTransformMatrix();
-
-    for (const auto& mesh : levelMeshes) {
-      for (int i = 0; i < mesh.indices.size(); i += 3) {
-        MeshTriangle tri{};
-        // fix w component of position
-        tri.points.at(0) = transformMat * glm::vec4(glm::vec3(mesh.vertices.at(mesh.indices.at(i)).position), 1.0f);
-        tri.points.at(1) = transformMat * glm::vec4(glm::vec3(mesh.vertices.at(mesh.indices.at(i + 1)).position), 1.0f);
-        tri.points.at(2) = transformMat * glm::vec4(glm::vec3(mesh.vertices.at(mesh.indices.at(i + 2)).position), 1.0f);
-
-        // precalculate edges
-        tri.edges.at(0) = tri.points.at(1) - tri.points.at(0);
-        tri.edges.at(1) = tri.points.at(2) - tri.points.at(1);
-        tri.edges.at(2) = tri.points.at(0) - tri.points.at(2);
-
-        tri.edgeLengths.at(0) = glm::length(tri.edges.at(0));
-        tri.edgeLengths.at(1) = glm::length(tri.edges.at(1));
-        tri.edgeLengths.at(2) = glm::length(tri.edges.at(2));
-
-        AABB triangleAABB;
-        triangleAABB.clear();
-        triangleAABB.addPoint(tri.points.at(0));
-        triangleAABB.addPoint(tri.points.at(1));
-        triangleAABB.addPoint(tri.points.at(2));
-
-        // add a (very) small offset to the size since complete planar triangles may be ignored
-        tri.boundingBox = BoundingBox3D(triangleAABB.getMinPos() - glm::vec3(0.0001f),
-                                        triangleAABB.getMaxPos() - triangleAABB.getMinPos() + glm::vec3(0.0002f));
-
-        tri.normal = glm::normalize(normalMat * glm::vec3(mesh.vertices.at(mesh.indices.at(i)).normal));
-
-        tri.index = index++;
-        mTriangleOctree->add(tri);
-      }
-    }
-  }
-
-  mLevelOctreeMesh->vertices.clear();
-
-  glm::vec4 octreeColor = glm::vec4(1.0f, 1.0f, 1.0, 1.0f);
-  const std::vector<BoundingBox3D> treeBoxes = mTriangleOctree->getTreeBoxes();
-  for (const auto& box : treeBoxes) {
-    AABB boxAABB{};
-    boxAABB.create(box.getFrontTopLeft());
-    boxAABB.addPoint(box.getFrontTopLeft() + box.getSize());
-
-    std::shared_ptr<VkSimpleMesh> instanceLines = boxAABB.getAABBLines(octreeColor);
-    mLevelOctreeMesh->vertices.insert(mLevelOctreeMesh->vertices.end(), instanceLines->vertices.begin(), instanceLines->vertices.end());
-  }
-
-  if (!mLevelOctreeMesh->vertices.empty()) {
-    mRenderData.rdUploadToVBOTimer.start();
-    for (int i = 0; i < mRenderData.rdNumFramesInFlight; ++i) {
-      VertexBuffer::uploadData(mRenderData, mRenderData.rdLevelOctreeVertexBuffers.at(i), mLevelOctreeMesh->vertices);
     }
     mRenderData.rdUploadToVBOTime += mRenderData.rdUploadToVBOTimer.stop();
   }
@@ -1865,13 +1806,6 @@ void VkRenderer::assignInstanceIndices() {
       modelType.second.at(i)->setInstanceSettings(instSettings);
     }
   }
-
-  // update also when number of instances has changed
-  mOctree->clear();
-  // skip null instance
-  for (size_t i = 1; i < mModelInstCamData.micAssimpInstances.size(); ++i) {
-    mOctree->add(mModelInstCamData.micAssimpInstances.at(i)->getInstanceIndexPosition());
-  }
 }
 
 void VkRenderer::assignLightIndices() {
@@ -1880,7 +1814,6 @@ void VkRenderer::assignLightIndices() {
     lightSettings.dlsIndexPosition = i;
     mModelInstCamData.micDynLights.at(i)->setDynLightSettings(lightSettings);
   }
-
 }
 
 void VkRenderer::generateShaderLightData() {
@@ -2447,7 +2380,7 @@ void VkRenderer::handleMousePositionEvents(double xPos, double yPos) {
       std::shared_ptr<AssimpModel> model = currentInstance->getModel();
       ModelSettings modelSettings = model->getModelSettings();
       if (modelSettings.msPhysicsEnabled) {
-        mPhysics.createBox3dPhysicsObject(mRenderData, currentInstance);
+        mPhysics.createBox3dPhysicsObject(mRenderData, mModelInstCamData, currentInstance);
       }
     }
 
@@ -2838,619 +2771,6 @@ bool VkRenderer::createAABBLookup(std::shared_ptr<AssimpModel> model) {
   return true;
 }
 
-bool VkRenderer::checkForInstanceCollisions() {
-  // get bounding box intersections
-  mModelInstCamData.micInstanceCollisions = mOctree->findAllIntersections();
-
-  // save bounding box collisions of non-animated instances
-  std::set<std::pair<int, int>> nonAnimatedCollisions{};
-  for (const auto& instancePair : mModelInstCamData.micInstanceCollisions) {
-    if (!mModelInstCamData.micAssimpInstances.at(instancePair.first)->getModel()->hasAnimations() ||
-        !mModelInstCamData.micAssimpInstances.at(instancePair.second)->getModel()->hasAnimations()) {
-      nonAnimatedCollisions.insert(instancePair);
-    }
-  }
-
-  if (mRenderData.rdCheckCollisions == collisionChecks::boundingSpheres) {
-    mBoundingSpheresPerInstance.clear();
-
-    // calculate collision spheres per model
-    std::map<std::string, std::set<int>> modelToInstanceMapping;
-
-    for (const auto& instancePairs : mModelInstCamData.micInstanceCollisions) {
-      modelToInstanceMapping[mModelInstCamData.micAssimpInstances.at(instancePairs.first)->getModel()->getModelFileName()].insert(instancePairs.first);
-      modelToInstanceMapping[mModelInstCamData.micAssimpInstances.at(instancePairs.second)->getModel()->getModelFileName()].insert(instancePairs.second);
-    }
-
-    // count total number of spheres to calculate
-    int totalSpheres = 0;
-    for (const auto& collisionInstances : modelToInstanceMapping) {
-      std::shared_ptr<AssimpModel> model = getModel(collisionInstances.first);
-      if (!model->hasAnimations()) {
-        continue;
-      }
-
-      std::string modelName = model->getModelFileName();
-      std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[modelName];
-
-      size_t numberOfBones = model->getBoneList().size();
-      size_t numInstances = instances.size();
-
-      size_t numberOfSpheres = numInstances * numberOfBones;
-
-      totalSpheres += numberOfSpheres;
-    }
-
-    // resize SSBO if needed
-    bool bufferResized = ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdBoundingSphereBuffers.at(mRenderData.currentFrame), totalSpheres * sizeof(glm::vec4));
-
-    if (bufferResized) {
-      VkHelper::updateSphereComputeDescriptorSets(mRenderData);
-    }
-
-    int sphereModelOffset = 0;
-    for (const auto& collisionInstances : modelToInstanceMapping) {
-      std::shared_ptr<AssimpModel> model = getModel(collisionInstances.first);
-      if (!model->hasAnimations()) {
-        continue;
-      }
-
-      size_t numInstances = collisionInstances.second.size();
-      std::vector<int> instanceIds = std::vector(collisionInstances.second.begin(), collisionInstances.second.end());
-
-      size_t numberOfBones = model->getBoneList().size();
-
-      size_t numberOfSpheres = numInstances * numberOfBones;
-      size_t trsMatrixSize = numInstances * numberOfBones * 3 * sizeof(glm::vec4);
-      size_t bufferMatrixSize = numInstances * numberOfBones * sizeof(glm::mat4);
-
-      // Vulkan needs separate buffers
-      mSphereWorldPosMatrices.clear();
-      mSphereWorldPosMatrices.resize(numInstances);
-
-      mSpherePerInstanceAnimData.clear();
-      mSpherePerInstanceAnimData.resize(numInstances);
-
-      for (size_t i = 0; i < numInstances; ++i) {
-        InstanceSettings instSettings = mModelInstCamData.micAssimpInstances.at(instanceIds.at(i))->getInstanceSettings();
-
-        PerInstanceAnimData animData{};
-        animData.firstAnimClipNum = instSettings.isFirstAnimClipNr;
-        animData.secondAnimClipNum = instSettings.isSecondAnimClipNr;
-        animData.firstClipReplayTimestamp = instSettings.isFirstClipAnimPlayTimePos;
-        animData.secondClipReplayTimestamp = instSettings.isSecondClipAnimPlayTimePos;
-        animData.blendFactor = instSettings.isAnimBlendFactor;
-
-        mSpherePerInstanceAnimData.at(i) = animData;
-
-        mSphereWorldPosMatrices.at(i) = mModelInstCamData.micAssimpInstances.at(instanceIds.at(i))->getWorldTransformMatrix();
-      }
-
-      // we need to update descriptors after the upload if buffer size changed
-      bool bufferResized = false;
-      mRenderData.rdUploadToUBOTimer.start();
-      bufferResized =  ShaderStorageBuffer::uploadSsboData(mRenderData, mRenderData.rdSpherePerInstanceAnimDataBuffers.at(mRenderData.currentFrame), mSpherePerInstanceAnimData);
-      bufferResized |= ShaderStorageBuffer::uploadSsboData(mRenderData, mRenderData.rdSphereModelRootMatrixBuffers.at(mRenderData.currentFrame), mSphereWorldPosMatrices);
-      mRenderData.rdUploadToUBOTime += mRenderData.rdUploadToUBOTimer.stop();
-
-      // resize SSBO if needed
-      bufferResized |= ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdSphereBoneMatrixBuffers.at(mRenderData.currentFrame), bufferMatrixSize);
-      bufferResized |= ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdSphereTRSMatrixBuffers.at(mRenderData.currentFrame), trsMatrixSize);
-
-      if (bufferResized) {
-        VkHelper::updateDescriptorSets(mRenderData);
-        VkHelper::updateSphereComputeDescriptorSets(mRenderData);
-      }
-
-      // in case data was changed
-      model->updateBoundingSphereAdjustments(mRenderData);
-
-      // record compute commands
-      VkResult result = vkResetFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdComputeFences.at(mRenderData.currentFrame));
-      if (result != VK_SUCCESS) {
-        Logger::log(1, "%s error: compute fence reset failed (error: %i)\n", __FUNCTION__, result);
-        return false;
-      }
-
-      if (!CommandBuffer::reset(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame), 0)) {
-        Logger::log(1, "%s error: failed to reset compute command buffer\n", __FUNCTION__);
-        return false;
-      }
-
-      if (!CommandBuffer::beginSingleShot(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame))) {
-        Logger::log(1, "%s error: failed to begin compute command buffer\n", __FUNCTION__);
-        return false;
-      }
-
-      VkHelper::runBoundingSphereComputeShaders(mRenderData, model, numInstances, sphereModelOffset);
-      sphereModelOffset += numberOfSpheres;
-
-      if (!CommandBuffer::end(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame))) {
-        Logger::log(1, "%s error: failed to end compute command buffer\n", __FUNCTION__);
-        return false;
-      }
-
-      // submit compute commands
-      VkSubmitInfo computeSubmitInfo{};
-      computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-      computeSubmitInfo.commandBufferCount = 1;
-      computeSubmitInfo.pCommandBuffers = &mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame);
-
-      result = vkQueueSubmit(mRenderData.rdComputeQueue, 1, &computeSubmitInfo, mRenderData.rdComputeFences.at(mRenderData.currentFrame));
-      if (result != VK_SUCCESS) {
-        Logger::log(1, "%s error: failed to submit compute command buffer (%i)\n", __FUNCTION__, result);
-        return false;
-      };
-
-      // we must wait for the compute shaders to finish before we can read the bone data
-      result = vkWaitForFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdComputeFences.at(mRenderData.currentFrame), VK_TRUE, UINT64_MAX);
-      if (result != VK_SUCCESS) {
-        Logger::log(1, "%s error: waiting for compute fence failed (error: %i)\n", __FUNCTION__, result);
-        return false;
-      }
-
-    }
-
-    // read sphere SSBO
-    mRenderData.rdDownloadFromUBOTimer.start();
-    std::vector<glm::vec4> boundingSpheres = ShaderStorageBuffer::getSsboDataVec4(mRenderData, mRenderData.rdBoundingSphereBuffers.at(mRenderData.currentFrame), totalSpheres);
-    mRenderData.rdDownloadFromUBOTime += mRenderData.rdDownloadFromUBOTimer.stop();
-
-    sphereModelOffset = 0;
-    for (const auto& collisionInstances : modelToInstanceMapping) {
-      std::shared_ptr<AssimpModel> model = getModel(collisionInstances.first);
-      if (!model->hasAnimations()) {
-        continue;
-      }
-
-      size_t numInstances = collisionInstances.second.size();
-      std::vector<int> instanceIds = std::vector(collisionInstances.second.begin(), collisionInstances.second.end());
-
-      size_t numberOfBones = model->getBoneList().size();
-      size_t numberOfSpheres = numInstances * numberOfBones;
-
-      for (size_t i = 0; i < numInstances; ++i) {
-        InstanceSettings instSettings = mModelInstCamData.micAssimpInstances.at(instanceIds.at(i))->getInstanceSettings();
-        int instanceIndex = instSettings.isInstanceIndexPosition;
-        mBoundingSpheresPerInstance[instanceIndex].resize(numberOfBones);
-
-        std::copy(boundingSpheres.begin() + sphereModelOffset + i * numberOfBones,
-          boundingSpheres.begin() + sphereModelOffset + (i + 1) * numberOfBones,
-          mBoundingSpheresPerInstance[instanceIndex].begin());
-      }
-      sphereModelOffset += numberOfSpheres;
-    }
-
-    checkForBoundingSphereCollisions();
-  }
-
-  // add up non-animated collisions
-  mModelInstCamData.micInstanceCollisions.merge(nonAnimatedCollisions);
-
-  // get (possibly cleaned) number of collisions
-  mRenderData.rdNumberOfCollisions = mModelInstCamData.micInstanceCollisions.size();
-
-  if (mRenderData.rdCheckCollisions != collisionChecks::none) {
-    reactToInstanceCollisions();
-  }
-  return true;
-}
-
-void VkRenderer::checkForLevelCollisions() {
-  mLevelCollidingTriangleMesh->vertices.clear();
-
-  for (const auto& instance : mModelInstCamData.micAssimpInstances) {
-    InstanceSettings instSettings = instance->getInstanceSettings();
-    if (instSettings.isInstanceIndexPosition == 0) {
-      continue;
-    }
-    mRenderData.rdNumberOfCollidingTriangles += instSettings.isCollidingTriangles.size();
-
-    instance->setCurrentGroundTriangleIndex(-1);
-    for (const auto& tri : instSettings.isCollidingTriangles) {
-      glm::vec3 vertexColor = glm::vec3(1.0f, 1.0f, 1.0f);
-
-      // check for slope
-      bool isWalkable = false;
-
-      if (glm::dot(tri.normal, glm::vec3(0.0f, 1.0f, 0.0f)) >= std::cos(glm::radians(mRenderData.rdMaxLevelGroundSlopeAngle))) {
-        isWalkable = true;
-        // find triangle we are walking on
-        AABB instanceAABB = instance->getModel()->getAABB(instSettings);
-        float instanceHeight = instanceAABB.getMaxPos().y - instanceAABB.getMinPos().y;
-        float instanceHalfHeight = instanceHeight / 2.0f;
-        std::optional<glm::vec3> result = Tools::rayTriangleIntersection(instSettings.isWorldPosition +
-          glm::vec3(0.0f, instanceHalfHeight, 0.0f), glm::vec3(0.0f, -instanceHeight, 0.0f), tri);
-        if (result.has_value()) {
-          instance->setCurrentGroundTriangleIndex(tri.index);
-        }
-      }
-
-      // stair handling
-      bool isStair = false;
-      AABB triangleAABB;
-      triangleAABB.create(tri.points.at(0));
-      triangleAABB.addPoint(tri.points.at(1));
-      triangleAABB.addPoint(tri.points.at(2));
-
-      // ignore triangles smaller than rdMaxStairHeight if they are on the foot of the instance
-      if (triangleAABB.getMaxPos().y - triangleAABB.getMinPos().y < mRenderData.rdMaxStairstepHeight &&
-        triangleAABB.getMinPos().y > instSettings.isWorldPosition.y - mRenderData.rdMaxStairstepHeight &&
-        triangleAABB.getMaxPos().y < instSettings.isWorldPosition.y + mRenderData.rdMaxStairstepHeight) {
-        isStair = true;
-        }
-
-       // check if upper bounds of structures are below foot level, offset max stair height high
-       bool isBelowFootLevel = false;
-      if (triangleAABB.getMaxPos().y < instSettings.isWorldPosition.y + mRenderData.rdMaxStairstepHeight) {
-        isBelowFootLevel = true;
-      }
-
-      // check if we have a ground triangle
-      if (isWalkable || isStair || isBelowFootLevel) {
-        vertexColor = glm::vec3(0.0f, 0.0f, 1.0f);
-        mRenderData.rdNumberOfCollidingGroundTriangles++;
-      } else {
-        vertexColor = glm::vec3(1.0f, 0.0f, 0.0f);
-        // fire wall collision event only when instance is on ground
-        if (instSettings.isInstanceOnGround) {
-          mModelInstCamData.micNodeEventCallbackFunction(instance, nodeEvent::instanceToLevelCollision);
-        }
-      }
-
-      if (mRenderData.rdDrawLevelCollisionTriangles) {
-        VkSimpleVertex vert;
-        vert.color = vertexColor;
-        // move wireframe overdraw a bit above the planes
-        vert.position = glm::vec4(tri.points.at(0) + tri.normal * 0.01f, 1.0f);
-        mLevelCollidingTriangleMesh->vertices.push_back(vert);
-        vert.position = glm::vec4(tri.points.at(1) + tri.normal * 0.01f, 1.0f);
-        mLevelCollidingTriangleMesh->vertices.push_back(vert);
-
-        vert.position = glm::vec4(tri.points.at(1) + tri.normal * 0.01f, 1.0f);
-        mLevelCollidingTriangleMesh->vertices.push_back(vert);
-        vert.position = glm::vec4(tri.points.at(2) + tri.normal * 0.01f, 1.0f);
-        mLevelCollidingTriangleMesh->vertices.push_back(vert);
-
-        vert.position = glm::vec4(tri.points.at(2) + tri.normal * 0.01f, 1.0f);
-        mLevelCollidingTriangleMesh->vertices.push_back(vert);
-        vert.position = glm::vec4(tri.points.at(0) + tri.normal * 0.01f, 1.0f);
-        mLevelCollidingTriangleMesh->vertices.push_back(vert);
-
-        mLineIndexCount += mLevelCollidingTriangleMesh->vertices.size();
-        mLineMesh->vertices.insert(mLineMesh->vertices.end(),
-          mLevelCollidingTriangleMesh->vertices.begin(),
-          mLevelCollidingTriangleMesh->vertices.end());
-      }
-    }
-  }
-}
-
-void VkRenderer::checkForBorderCollisions() {
-  for (const auto& instancesPerModel : mModelInstCamData.micAssimpInstancesPerModel) {
-    std::shared_ptr<AssimpModel> model = getModel(instancesPerModel.first);
-    // non-animated models have no lookup data
-    if (!model || !model->hasAnimations()) {
-      continue;
-    }
-
-    std::vector<std::shared_ptr<AssimpInstance>> instances = instancesPerModel.second;
-    for (size_t i = 0; i < instances.size(); ++i) {
-      InstanceSettings instSettings = instances.at(i)->getInstanceSettings();
-
-      // check world borders
-      AABB instanceAABB = model->getAABB(instSettings);
-      glm::vec3 minPos = instanceAABB.getMinPos();
-      glm::vec3 maxPos = instanceAABB.getMaxPos();
-      if (minPos.x < mWorldBoundaries->getFrontTopLeft().x || maxPos.x > mWorldBoundaries->getRight() ||
-          minPos.y < mWorldBoundaries->getFrontTopLeft().y || maxPos.y > mWorldBoundaries->getBottom() ||
-          minPos.z < mWorldBoundaries->getFrontTopLeft().z || maxPos.z > mWorldBoundaries->getBack()) {
-        mModelInstCamData.micNodeEventCallbackFunction(instances.at(i), nodeEvent::instanceToEdgeCollision);
-      }
-    }
-  }
-}
-
-void VkRenderer::checkForBoundingSphereCollisions() {
-  std::set<std::pair<int, int>> sphereCollisions{};
-
-  for (const auto& instancePairs : mModelInstCamData.micInstanceCollisions) {
-    int firstId = instancePairs.first;
-    int secondId = instancePairs.second;
-
-    // brute force check of sphere vs sphere
-    bool collisionDetected = false;
-
-    for (size_t first = 0; first < mBoundingSpheresPerInstance[firstId].size(); ++first) {
-      glm::vec4 firstSphereData = mBoundingSpheresPerInstance[firstId].at(first);
-      float firstRadius = firstSphereData.w;
-
-      // no need to check disabled spheres
-      if (firstRadius == 0.0f) {
-        continue;
-      }
-
-      glm::vec3 firstSpherePos = glm::vec3(firstSphereData.x, firstSphereData.y, firstSphereData.z);
-
-      for (size_t second = 0; second < mBoundingSpheresPerInstance[secondId].size(); ++second) {
-        glm::vec4 secondSphereData = mBoundingSpheresPerInstance[secondId].at(second);
-        float secondRadius = secondSphereData.w;
-
-        // no need to check disabled spheres
-        if (secondRadius == 0.0f) {
-          continue;
-        }
-
-        glm::vec3 secondSpherePos = glm::vec3(secondSphereData.x, secondSphereData.y, secondSphereData.z);
-
-        // check for intersections 
-        glm::vec3 centerDistance = firstSpherePos - secondSpherePos;
-        float centerDistanceSquared = glm::dot(centerDistance, centerDistance);
-
-        float sphereRadiusSum = firstRadius + secondRadius;
-        float sphereRadiusSumSquared = sphereRadiusSum * sphereRadiusSum;
-
-        // flag as a hit and exit immediately
-        if (centerDistanceSquared <= sphereRadiusSumSquared) {
-          collisionDetected = true;
-          break;
-        }
-      }
-
-      if (collisionDetected) {
-        break;
-      }
-    }
-
-    // store collisions in set
-    if (collisionDetected) {
-      sphereCollisions.insert({firstId, secondId});
-    }
-  }
-
-  // replace collided instance data with new ones
-  mModelInstCamData.micInstanceCollisions.clear();
-  mModelInstCamData.micInstanceCollisions.insert(sphereCollisions.begin(), sphereCollisions.end());
-}
-
-void VkRenderer::reactToInstanceCollisions() {
-  std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstances;
-
-  for (const auto& instancePairs : mModelInstCamData.micInstanceCollisions) {
-    std::shared_ptr<AssimpInstance> firstInstance = instances.at(instancePairs.first);
-    InstanceSettings firstInstSettings = firstInstance->getInstanceSettings();
-
-    std::shared_ptr<AssimpInstance> secondInstance = instances.at(instancePairs.second);
-    InstanceSettings secondInstSettings = secondInstance->getInstanceSettings();
-
-    mModelInstCamData.micNodeEventCallbackFunction(firstInstance, nodeEvent::instanceToInstanceCollision);
-    mModelInstCamData.micNodeEventCallbackFunction(secondInstance, nodeEvent::instanceToInstanceCollision);
-
-    // disable navigation if we collide with target
-    if (firstInstSettings.isNavigationEnabled && firstInstSettings.isPathTargetInstance == secondInstSettings.isInstanceIndexPosition) {
-      firstInstance->setNavigationEnabled(false);
-      firstInstance->setPathTargetInstanceId(-1);
-      mModelInstCamData.micNodeEventCallbackFunction(firstInstance, nodeEvent::navTargetReached);
-    }
-    if (secondInstSettings.isNavigationEnabled && secondInstSettings.isPathTargetInstance == firstInstSettings.isInstanceIndexPosition) {
-      secondInstance->setNavigationEnabled(false);
-      secondInstance->setPathTargetInstanceId(-1);
-      mModelInstCamData.micNodeEventCallbackFunction(secondInstance, nodeEvent::navTargetReached);
-    }
-  }
-}
-
-
-void VkRenderer::findInteractionInstances() {
-  if (!mRenderData.rdInteraction) {
-    return;
-  }
-  mRenderData.rdInteractionCandidates.clear();
-
-  if (mModelInstCamData.micSelectedInstance == 0) {
-    return;
-  }
-  std::shared_ptr<AssimpInstance> currentInstance = mModelInstCamData.micAssimpInstances.at(mModelInstCamData.micSelectedInstance);
-  InstanceSettings curInstSettings = currentInstance->getInstanceSettings();
-
-  // query octree with a bounding box
-  glm::vec3 instancePos = curInstSettings.isWorldPosition;
-  glm::vec3 querySize = glm::vec3(mRenderData.rdInteractionMaxRange);
-  BoundingBox3D queryBox = BoundingBox3D(instancePos - querySize / 2.0f, querySize);
-
-  std::set<int> queriedNearInstances = mOctree->query(queryBox);
-
-  // skip ourselve
-  queriedNearInstances.erase(curInstSettings.isInstanceIndexPosition);
-
-  if (queriedNearInstances.empty()) {
-    return;
-  }
-
-  std::set<int> nearInstances{};
-  for (const auto& id : queriedNearInstances) {
-    std::shared_ptr<AssimpInstance> instance = mModelInstCamData.micAssimpInstances.at(id);
-    InstanceSettings instSettings = instance->getInstanceSettings();
-
-    float distance = glm::length(instSettings.isWorldPosition - curInstSettings.isWorldPosition);
-    if (distance > mRenderData.rdInteractionMinRange) {
-      nearInstances.emplace(id);
-    }
-  }
-
-  if (nearInstances.empty()) {
-    return;
-  }
-
-  mRenderData.rdNumberOfInteractionCandidates = nearInstances.size();
-
-  if (mRenderData.rdDrawInteractionAABBs == interactionDebugDraw::distance) {
-    mRenderData.rdInteractionCandidates = nearInstances;
-  }
-
-  std::set<int> instancesFacingToUs{};
-  for (const auto& id : nearInstances) {
-    std::shared_ptr<AssimpInstance> instance = mModelInstCamData.micAssimpInstances.at(id);
-    InstanceSettings instSettings = instance->getInstanceSettings();
-
-    glm::vec3 distanceVector = glm::normalize(instSettings.isWorldPosition - curInstSettings.isWorldPosition);
-    float angle = glm::degrees(glm::acos(glm::dot(currentInstance->get2DRotationVector(), distanceVector)));
-    float instAngle = glm::degrees(glm::acos(glm::dot(instance->get2DRotationVector(), -distanceVector)));
-
-    if (angle < mRenderData.rdInteractionFOV && instAngle < mRenderData.rdInteractionFOV)  {
-      instancesFacingToUs.emplace(id);
-    }
-  }
-
-  if (instancesFacingToUs.empty()) {
-    return;
-  }
-
-  if (mRenderData.rdDrawInteractionAABBs == interactionDebugDraw::facingTowardsUs) {
-    mRenderData.rdInteractionCandidates = instancesFacingToUs;
-  }
-
-  std::vector<std::pair<float, int>> sortedDistances;
-  for (const auto& id : instancesFacingToUs) {
-    std::shared_ptr<AssimpInstance> instance = mModelInstCamData.micAssimpInstances.at(id);
-    InstanceSettings instSettings = instance->getInstanceSettings();
-
-    float distance = glm::length(instSettings.isWorldPosition - curInstSettings.isWorldPosition);
-    sortedDistances.emplace_back(std::make_pair(distance, id));
-  }
-
-  std::sort(sortedDistances.begin(), sortedDistances.end());
-  mRenderData.rdInteractWithInstanceId = sortedDistances.begin()->second;
-
-  if (mRenderData.rdDrawInteractionAABBs == interactionDebugDraw::nearestCandidate) {
-    mRenderData.rdInteractionCandidates = { mRenderData.rdInteractWithInstanceId };
-  }
-}
-
-void VkRenderer::createInteractionDebug() {
-  if (mModelInstCamData.micSelectedInstance == 0 || !mRenderData.rdInteraction) {
-    return;
-  }
-
-  glm::vec4 aabbColor = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-
-  VkSimpleMesh InteractionMesh;
-  VkSimpleVertex vertex;
-  vertex.color = aabbColor;
-
-  std::shared_ptr<AssimpInstance> instance = mModelInstCamData.micAssimpInstances.at(mModelInstCamData.micSelectedInstance);
-  InstanceSettings instSettings = instance->getInstanceSettings();
-
-  if (mRenderData.rdDrawInteractionRange) {
-    glm::vec3 instancePos = instSettings.isWorldPosition;
-    glm::vec2 instancePos2D = glm::vec2(instancePos.x, instancePos.z);
-
-    glm::vec2 minQueryBoxTopLeft = glm::vec2(instancePos2D) - glm::vec2(mRenderData.rdInteractionMinRange / 2.0f);
-    glm::vec2 minQueryBoxBottomRight = glm::vec2(instancePos2D) + glm::vec2(mRenderData.rdInteractionMinRange / 2.0f);
-
-    glm::vec2 maxQueryBoxTopLeft = glm::vec2(instancePos2D) - glm::vec2(mRenderData.rdInteractionMaxRange / 2.0f);
-    glm::vec2 maxQueryBoxBottomRight = glm::vec2(instancePos2D) + glm::vec2(mRenderData.rdInteractionMaxRange / 2.0f);
-
-    // min range
-    vertex.position = glm::vec3(minQueryBoxTopLeft.x, instancePos.y, minQueryBoxTopLeft.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-    vertex.position = glm::vec3(minQueryBoxTopLeft.x, instancePos.y, minQueryBoxBottomRight.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-
-    vertex.position = glm::vec3(minQueryBoxTopLeft.x, instancePos.y, minQueryBoxBottomRight.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-    vertex.position = glm::vec3(minQueryBoxBottomRight.x, instancePos.y, minQueryBoxBottomRight.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-
-    vertex.position = glm::vec3(minQueryBoxBottomRight.x, instancePos.y, minQueryBoxBottomRight.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-    vertex.position = glm::vec3(minQueryBoxBottomRight.x, instancePos.y, minQueryBoxTopLeft.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-
-    vertex.position = glm::vec3(minQueryBoxBottomRight.x, instancePos.y, minQueryBoxTopLeft.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-    vertex.position = glm::vec3(minQueryBoxTopLeft.x, instancePos.y, minQueryBoxTopLeft.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-
-    // max range
-    vertex.position = glm::vec3(maxQueryBoxTopLeft.x, instancePos.y, maxQueryBoxTopLeft.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-    vertex.position = glm::vec3(maxQueryBoxTopLeft.x, instancePos.y, maxQueryBoxBottomRight.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-
-    vertex.position = glm::vec3(maxQueryBoxTopLeft.x, instancePos.y, maxQueryBoxBottomRight.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-    vertex.position = glm::vec3(maxQueryBoxBottomRight.x, instancePos.y, maxQueryBoxBottomRight.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-
-    vertex.position = glm::vec3(maxQueryBoxBottomRight.x, instancePos.y, maxQueryBoxBottomRight.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-    vertex.position = glm::vec3(maxQueryBoxBottomRight.x, instancePos.y, maxQueryBoxTopLeft.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-
-    vertex.position = glm::vec3(maxQueryBoxBottomRight.x, instancePos.y, maxQueryBoxTopLeft.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-    vertex.position = glm::vec3(maxQueryBoxTopLeft.x, instancePos.y, maxQueryBoxTopLeft.y);
-    InteractionMesh.vertices.emplace_back(vertex);
-  }
-
-  // draw FOV lines
-  if (mRenderData.rdDrawInteractionFOV) {
-    std::set<int> drawFOVLines = mRenderData.rdInteractionCandidates;
-    drawFOVLines.emplace(instSettings.isInstanceIndexPosition);
-
-    for (const auto id : drawFOVLines) {
-      std::shared_ptr<AssimpInstance> fovInstance = mModelInstCamData.micAssimpInstances.at(id);
-      InstanceSettings fovInstSettings = fovInstance->getInstanceSettings();
-
-      vertex.position = fovInstSettings.isWorldPosition;
-      InteractionMesh.vertices.emplace_back(vertex);
-
-      float minAngle = fovInstSettings.isWorldRotation.y - mRenderData.rdInteractionFOV;
-      if (minAngle < -180.0f) {
-        minAngle += 360.0f;
-      }
-      if (minAngle > 180.0f) {
-        minAngle -= 360.0f;
-      }
-      float sinRot = std::sin(glm::radians(minAngle));
-      float cosRot = std::cos(glm::radians(minAngle));
-      vertex.position = fovInstSettings.isWorldPosition + glm::normalize(glm::vec3(sinRot, 0.0f, cosRot)) * 3.0f;
-      InteractionMesh.vertices.emplace_back(vertex);
-
-      vertex.position = fovInstSettings.isWorldPosition;
-      InteractionMesh.vertices.emplace_back(vertex);
-
-      float maxAngle = fovInstSettings.isWorldRotation.y + mRenderData.rdInteractionFOV;
-      if (maxAngle < -180.0f) {
-        maxAngle += 360.0f;
-      }
-      if (maxAngle > 180.0f) {
-        maxAngle -= 360.0f;
-      }
-      sinRot = std::sin(glm::radians(maxAngle));
-      cosRot = std::cos(glm::radians(maxAngle));
-      vertex.position = fovInstSettings.isWorldPosition + glm::normalize(glm::vec3(sinRot, 0.0f, cosRot)) * 3.0f;
-      InteractionMesh.vertices.emplace_back(vertex);
-    }
-  }
-
-  mLineIndexCount += InteractionMesh.vertices.size();
-  mLineMesh->vertices.insert(mLineMesh->vertices.end(), InteractionMesh.vertices.begin(), InteractionMesh.vertices.end());
-
-  // draw instance AABBs
-  if (mRenderData.rdInteractionCandidates.empty()) {
-    return;
-  }
-
-  std::vector<std::shared_ptr<AssimpInstance>> instancesToDraw{};
-  for (const int id : mRenderData.rdInteractionCandidates) {
-    instancesToDraw.emplace_back(mModelInstCamData.micAssimpInstances.at(id));
-  }
-
-  createAABBDebugLiness(instancesToDraw, aabbColor);
-}
-
 void VkRenderer::createAABBDebugLiness(std::vector<std::shared_ptr<AssimpInstance>> instances, glm::vec4 aabbColor) {
   std::shared_ptr<VkSimpleMesh> aabbLineMesh = nullptr;;
 
@@ -3481,6 +2801,68 @@ void VkRenderer::createAABBDebugLiness(std::vector<std::shared_ptr<AssimpInstanc
   mLineMesh->vertices.insert(mLineMesh->vertices.end(), mAABBMesh->vertices.begin(), mAABBMesh->vertices.end());
 }
 
+void VkRenderer::checkForLevelCollisions() {
+  mLevelCollidingTriangleMesh->vertices.clear();
+
+  if (mRenderData.rdDrawLevelCollisionTriangles) {
+    for (const auto& level : mModelInstCamData.micLevels) {
+      if (level->getTriangleCount() > 0) {
+
+        std::unordered_map<int, std::vector<int>> shapeIndexMap = mPhysics.getShapeToTriangleIndexMap();
+        for (std::pair<int, std::vector<int>> vals : shapeIndexMap) {
+          for (int triIndex : vals.second) {
+            std::optional<std::array<glm::vec3, 3>> points = level->getTriangleDateFromShapeAndIndex(vals.first, triIndex);
+            if (points.has_value()) {
+              std::array<glm::vec3, 3> p = points.value();
+              Logger::log(2, "%s: %s/%s/%s\n", __FUNCTION__,
+                glm::to_string(p.at(0)).c_str(),
+                glm::to_string(p.at(1)).c_str(),
+                glm::to_string(p.at(2)).c_str());
+
+              VkSimpleVertex vertex{};
+              vertex.color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+
+              vertex.position = glm::vec4(p.at(0), 1.0f);
+              mLevelCollidingTriangleMesh->vertices.push_back(vertex);
+              vertex.position = glm::vec4(p.at(1), 1.0f);
+              mLevelCollidingTriangleMesh->vertices.push_back(vertex);
+
+              vertex.position = glm::vec4(p.at(1), 1.0f);
+              mLevelCollidingTriangleMesh->vertices.push_back(vertex);
+              vertex.position = glm::vec4(p.at(2), 1.0f);
+              mLevelCollidingTriangleMesh->vertices.push_back(vertex);
+
+              vertex.position = glm::vec4(p.at(2), 1.0f);
+              mLevelCollidingTriangleMesh->vertices.push_back(vertex);
+              vertex.position = glm::vec4(p.at(0), 1.0f);
+              mLevelCollidingTriangleMesh->vertices.push_back(vertex);
+
+            }
+          }
+        }
+      }
+    }
+    mLineIndexCount += mLevelCollidingTriangleMesh->vertices.size();
+    mLineMesh->vertices.insert(mLineMesh->vertices.end(),
+     mLevelCollidingTriangleMesh->vertices.begin(),
+     mLevelCollidingTriangleMesh->vertices.end());
+  }
+}
+
+void VkRenderer::checkInstanceFellOutOfWorld(std::shared_ptr<AssimpInstance> instance) {
+  InstanceSettings instSettings = instance->getInstanceSettings();
+  if (instSettings.isWorldPosition.y < mRenderData.rdWorldStartPos.y - 50.0f) {
+    mModelInstCamData.micPendingDeleteAssimpInstances.insert(instance);
+
+    std::string modelName = instance->getModel()->getModelFileName();
+    mModelInstCamData.micPendingDeleteAssimpInstancesModels.insert(modelName);
+
+    int instanceId = instSettings.isInstanceIndexPosition;
+    Logger::log(1, "%s warning: instance id %i fell out of level boundaries, deleting\n", __FUNCTION__, instanceId);
+
+  }
+}
+
 void VkRenderer::resetLevelData() {
   mRenderData.rdWorldStartPos = mRenderData.rdDefaultWorldStartPos;
   mRenderData.rdWorldSize = mRenderData.rdDefaultWorldSize;
@@ -3492,19 +2874,14 @@ void VkRenderer::resetLevelData() {
   mWorldBoundaries = std::make_shared<BoundingBox3D>(mRenderData.rdDefaultWorldStartPos, mRenderData.rdDefaultWorldSize);
   mRenderData.rdWorldStartPos = mWorldBoundaries->getFrontTopLeft();
   mRenderData.rdWorldSize = mWorldBoundaries->getSize();
-  initOctree(mRenderData.rdOctreeThreshold, mRenderData.rdOctreeMaxDepth);
-  initTriangleOctree(mRenderData.rdOctreeThreshold, mRenderData.rdOctreeMaxDepth);
 
   mRenderData.rdDrawLevelAABB = false;
   mRenderData.rdDrawLevelWireframe = false;
   mRenderData.rdDrawLevelWireframeMiniMap = false;
-  mRenderData.rdDrawLevelOctree = false;
   mRenderData.rdDrawLevelCollisionTriangles = false;
   mRenderData.rdEnableSimpleGravity = false;
 
   mRenderData.rdMaxLevelGroundSlopeAngle = 0.0f;
-  mRenderData.rdLevelOctreeThreshold = 10;
-  mRenderData.rdLevelOctreeMaxDepth = 5;
 
   mRenderData.rdEnableFeetIK = false;
   mRenderData.rdDrawIKDebugLines = false;
@@ -3567,437 +2944,10 @@ void VkRenderer::resetLevelData() {
   if (mModelInstCamData.micStopMusicCallbackFunction) {
     mModelInstCamData.micStopMusicCallbackFunction();
   }
-
-  mUserInterface.resetPositionWindowOctreeView();
 }
 
-void VkRenderer::createInstanceCollisionDebug() {
-  // draw AABB lines and bounding sphere of selected instance
-  if (mRenderData.rdDrawCollisionAABBs == collisionDebugDraw::colliding ||
-    mRenderData.rdDrawCollisionAABBs == collisionDebugDraw::all) {
-    std::set<int> uniqueInstanceIds;
-
-    for (const auto& colliding : mModelInstCamData.micInstanceCollisions) {
-      uniqueInstanceIds.insert(colliding.first);
-      uniqueInstanceIds.insert(colliding.second);
-    }
-
-    std::vector<std::shared_ptr<AssimpInstance>> instancestoDraw;
-    glm::vec4 aabbColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-    // draw colliding instances in red
-    if (mRenderData.rdDrawCollisionAABBs == collisionDebugDraw::colliding ||
-      mRenderData.rdDrawCollisionAABBs == collisionDebugDraw::all) {
-      for (const auto id : uniqueInstanceIds) {
-        instancestoDraw.push_back(mModelInstCamData.micAssimpInstances.at(id));
-      }
-      // draw red lines for collisions
-      aabbColor = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-      createAABBDebugLiness(instancestoDraw, aabbColor);
-    }
-
-    // draw yellow lines for non-colliiding instances
-    // we can just overdraw the lines, thanks to the z-buffer the red lines stay :)
-    if (mRenderData.rdDrawCollisionAABBs == collisionDebugDraw::all) {
-      instancestoDraw = mModelInstCamData.micAssimpInstances;
-      aabbColor = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-      createAABBDebugLiness(instancestoDraw, aabbColor);
-    }
-  }
-}
-
-bool VkRenderer::createSelectedBoundingSpheres() {
-  if (mModelInstCamData.micSelectedInstance > 0 ) {
-    std::shared_ptr<AssimpInstance> instance = mModelInstCamData.micAssimpInstances.at(mModelInstCamData.micSelectedInstance);
-    std::shared_ptr<AssimpModel> model = instance->getModel();
-
-    if (!model->hasAnimations()) {
-      return false;
-    }
-
-    size_t numberOfBones = model->getBoneList().size();
-
-    size_t numberOfSpheres = numberOfBones;
-    size_t trsMatrixSize = numberOfBones * 3 * sizeof(glm::vec4);
-    size_t bufferMatrixSize = numberOfBones * sizeof(glm::mat4);
-
-    mSphereWorldPosMatrices.clear();
-    mSphereWorldPosMatrices.resize(1);
-
-    mSpherePerInstanceAnimData.clear();
-    mSpherePerInstanceAnimData.resize(1);
-
-    InstanceSettings instSettings = instance->getInstanceSettings();
-
-    PerInstanceAnimData animData{};
-    animData.firstAnimClipNum = instSettings.isFirstAnimClipNr;
-    animData.secondAnimClipNum = instSettings.isSecondAnimClipNr;
-    animData.firstClipReplayTimestamp = instSettings.isFirstClipAnimPlayTimePos;
-    animData.secondClipReplayTimestamp = instSettings.isSecondClipAnimPlayTimePos;
-    animData.blendFactor = instSettings.isAnimBlendFactor;
-
-    mSpherePerInstanceAnimData.at(0) = animData;
-
-    mSphereWorldPosMatrices.at(0) = instance->getWorldTransformMatrix();
-
-    // resize SSBOs if needed
-    bool bufferResized = false;
-    mRenderData.rdUploadToUBOTimer.start();
-    bufferResized = ShaderStorageBuffer::uploadSsboData(mRenderData, mRenderData.rdSpherePerInstanceAnimDataBuffers.at(mRenderData.currentFrame), mSpherePerInstanceAnimData);
-    bufferResized |= ShaderStorageBuffer::uploadSsboData(mRenderData, mRenderData.rdSphereModelRootMatrixBuffers.at(mRenderData.currentFrame), mSphereWorldPosMatrices);
-    mRenderData.rdUploadToUBOTime += mRenderData.rdUploadToUBOTimer.stop();
-
-    // resize SSBO if needed
-    bufferResized |= ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdSphereBoneMatrixBuffers.at(mRenderData.currentFrame), bufferMatrixSize);
-    bufferResized |= ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdSphereTRSMatrixBuffers.at(mRenderData.currentFrame), trsMatrixSize);
-    bufferResized |= ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdBoundingSphereBuffers.at(mRenderData.currentFrame), numberOfSpheres * sizeof(glm::vec4));
-
-    if (bufferResized) {
-      VkHelper::updateDescriptorSets(mRenderData);
-      VkHelper::updateSphereComputeDescriptorSets(mRenderData);
-    }
-
-    // in case data was changed
-    model->updateBoundingSphereAdjustments(mRenderData);
-
-    // record compute commands
-    VkResult result = vkResetFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdComputeFences.at(mRenderData.currentFrame));
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: compute fence reset failed (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-
-    if (!CommandBuffer::reset(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame), 0)) {
-      Logger::log(1, "%s error: failed to reset compute command buffer\n", __FUNCTION__);
-      return false;
-    }
-
-    if (!CommandBuffer::beginSingleShot(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame))) {
-      Logger::log(1, "%s error: failed to begin compute command buffer\n", __FUNCTION__);
-      return false;
-    }
-
-    VkHelper::runBoundingSphereComputeShaders(mRenderData, model, 1, 0);
-    mCollidingSphereCount = numberOfSpheres;
-
-    if (!CommandBuffer::end(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame))) {
-      Logger::log(1, "%s error: failed to end compute command buffer\n", __FUNCTION__);
-      return false;
-    }
-
-    // submit compute commands
-    VkSubmitInfo computeSubmitInfo{};
-    computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    computeSubmitInfo.commandBufferCount = 1;
-    computeSubmitInfo.pCommandBuffers = &mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame);
-
-    result = vkQueueSubmit(mRenderData.rdComputeQueue, 1, &computeSubmitInfo, mRenderData.rdComputeFences.at(mRenderData.currentFrame));
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: failed to submit compute command buffer (%i)\n", __FUNCTION__, result);
-      return false;
-    };
-
-    // we must wait for the compute shaders to finish before we can read the bone data
-    result = vkWaitForFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdComputeFences.at(mRenderData.currentFrame), VK_TRUE, UINT64_MAX);
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: waiting for compute fence failed (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-  }
-
-  if (mCollidingSphereCount > 0) {
-    mRenderData.rdUploadToVBOTimer.start();
-    VertexBuffer::uploadData(mRenderData, mRenderData.rdSphereVertexBuffers.at(mRenderData.currentFrame), mSphereMesh.vertices);
-    mRenderData.rdUploadToVBOTime += mRenderData.rdUploadToVBOTimer.stop();
-  }
-
-  return true;
-}
-
-bool VkRenderer::createCollidingBoundingSpheres() {
-  // split instances in models - use a std::set to get unique instance IDs
-  std::map<std::string, std::set<int>> modelToInstanceMapping;
-
-  for (const auto& instancePairs : mModelInstCamData.micInstanceCollisions) {
-    modelToInstanceMapping[mModelInstCamData.micAssimpInstances.at(instancePairs.first)->getModel()->getModelFileName()].insert(instancePairs.first);
-    modelToInstanceMapping[mModelInstCamData.micAssimpInstances.at(instancePairs.second)->getModel()->getModelFileName()].insert(instancePairs.second);
-  }
-
-  int totalSpheres = 0;
-  for (const auto& collisionInstances : modelToInstanceMapping) {
-    std::shared_ptr<AssimpModel> model = getModel(collisionInstances.first);
-    if (!model->hasAnimations()) {
-      continue;
-    }
-
-    std::string modelName = model->getModelFileName();
-    std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[modelName];
-
-    size_t numberOfBones = model->getBoneList().size();
-    size_t numInstances = instances.size();
-
-    size_t numberOfSpheres = numInstances * numberOfBones;
-
-    totalSpheres += numberOfSpheres;
-  }
-
-  // resize SSBO if needed
-  bool bufferResized = false;
-  bufferResized = ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdBoundingSphereBuffers.at(mRenderData.currentFrame), totalSpheres * sizeof(glm::vec4));
-
-  if (bufferResized) {
-    VkHelper::updateSphereComputeDescriptorSets(mRenderData);
-  }
-
-  int sphereModelOffset = 0;
-  for (const auto& collisionInstances : modelToInstanceMapping) {
-    std::shared_ptr<AssimpModel> model = getModel(collisionInstances.first);
-    if (!model->hasAnimations()) {
-      continue;
-    }
-
-    size_t numInstances = collisionInstances.second.size();
-    std::vector<int> instanceIds = std::vector(collisionInstances.second.begin(), collisionInstances.second.end());
-
-    size_t numberOfBones = model->getBoneList().size();
-
-    size_t numberOfSpheres = numInstances * numberOfBones;
-    size_t trsMatrixSize = numInstances * numberOfBones * 3 * sizeof(glm::vec4);
-    size_t bufferMatrixSize = numInstances * numberOfBones * sizeof(glm::mat4);
-
-    mSphereWorldPosMatrices.clear();
-    mSphereWorldPosMatrices.resize(numInstances);
-
-    mSpherePerInstanceAnimData.clear();
-    mSpherePerInstanceAnimData.resize(numInstances);
-
-    for (size_t i = 0; i < instanceIds.size(); ++i) {
-      InstanceSettings instSettings = mModelInstCamData.micAssimpInstances.at(instanceIds.at(i))->getInstanceSettings();
-
-      PerInstanceAnimData animData{};
-      animData.firstAnimClipNum = instSettings.isFirstAnimClipNr;
-      animData.secondAnimClipNum = instSettings.isSecondAnimClipNr;
-      animData.firstClipReplayTimestamp = instSettings.isFirstClipAnimPlayTimePos;
-      animData.secondClipReplayTimestamp = instSettings.isSecondClipAnimPlayTimePos;
-      animData.blendFactor = instSettings.isAnimBlendFactor;
-
-      mSpherePerInstanceAnimData.at(i) = animData;
-
-      mSphereWorldPosMatrices.at(i) = mModelInstCamData.micAssimpInstances.at(instanceIds.at(i))->getWorldTransformMatrix();
-    }
-
-    // we need to update descriptors after the upload if buffer size changed
-    bool bufferResized = false;
-    mRenderData.rdUploadToUBOTimer.start();
-    bufferResized = ShaderStorageBuffer::uploadSsboData(mRenderData, mRenderData.rdSpherePerInstanceAnimDataBuffers.at(mRenderData.currentFrame), mSpherePerInstanceAnimData);
-    bufferResized |= ShaderStorageBuffer::uploadSsboData(mRenderData, mRenderData.rdSphereModelRootMatrixBuffers.at(mRenderData.currentFrame), mSphereWorldPosMatrices);
-    mRenderData.rdUploadToUBOTime += mRenderData.rdUploadToUBOTimer.stop();
-
-    // resize SSBO if needed
-    bufferResized |= ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdSphereBoneMatrixBuffers.at(mRenderData.currentFrame), bufferMatrixSize);
-    bufferResized |= ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdSphereTRSMatrixBuffers.at(mRenderData.currentFrame), trsMatrixSize);
-
-    if (bufferResized) {
-      VkHelper::updateDescriptorSets(mRenderData);
-      VkHelper::updateSphereComputeDescriptorSets(mRenderData);
-    }
-
-    // in case data was changed
-    model->updateBoundingSphereAdjustments(mRenderData);
-
-    // record compute commands
-    VkResult result = vkResetFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdComputeFences.at(mRenderData.currentFrame));
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: compute fence reset failed (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-
-    if (!CommandBuffer::reset(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame), 0)) {
-      Logger::log(1, "%s error: failed to reset compute command buffer\n", __FUNCTION__);
-      return false;
-    }
-
-    if (!CommandBuffer::beginSingleShot(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame))) {
-      Logger::log(1, "%s error: failed to begin compute command buffer\n", __FUNCTION__);
-      return false;
-    }
-
-    VkHelper::runBoundingSphereComputeShaders(mRenderData, model, numInstances, sphereModelOffset);
-    sphereModelOffset += numberOfSpheres;
-    mCollidingSphereCount += numberOfSpheres;
-
-    if (!CommandBuffer::end(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame))) {
-      Logger::log(1, "%s error: failed to end compute command buffer\n", __FUNCTION__);
-      return false;
-    }
-
-    // submit compute commands
-    VkSubmitInfo computeSubmitInfo{};
-    computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    computeSubmitInfo.commandBufferCount = 1;
-    computeSubmitInfo.pCommandBuffers = &mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame);
-
-    result = vkQueueSubmit(mRenderData.rdComputeQueue, 1, &computeSubmitInfo, mRenderData.rdComputeFences.at(mRenderData.currentFrame));
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: failed to submit compute command buffer (%i)\n", __FUNCTION__, result);
-      return false;
-    };
-
-    // we must wait for the compute shaders to finish before we can read the bone data
-    result = vkWaitForFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdComputeFences.at(mRenderData.currentFrame), VK_TRUE, UINT64_MAX);
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: waiting for compute fence failed (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-  }
-
-  if (mCollidingSphereCount > 0) {
-    mRenderData.rdUploadToVBOTimer.start();
-    VertexBuffer::uploadData(mRenderData, mRenderData.rdSphereVertexBuffers.at(mRenderData.currentFrame), mCollidingSphereMesh.vertices);
-    mRenderData.rdUploadToVBOTime += mRenderData.rdUploadToVBOTimer.stop();
-  }
-
-  return true;
-}
-
-bool VkRenderer::createAllBoundingSpheres() {
-  // count total number of spheres to calculate
-  int totalSpheres = 0;
-  for (const auto& model : mModelInstCamData.micModelList) {
-    if (!model->hasAnimations()) {
-      continue;
-    }
-    std::string modelName = model->getModelFileName();
-    std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[modelName];
-
-    size_t numberOfBones = model->getBoneList().size();
-    size_t numInstances = instances.size();
-
-    size_t numberOfSpheres = numInstances * numberOfBones;
-
-    totalSpheres += numberOfSpheres;
-  }
-
-  // resize SSBO if needed
-  bool bufferResized = false;
-  bufferResized = ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdBoundingSphereBuffers.at(mRenderData.currentFrame), totalSpheres * sizeof(glm::vec4));
-
-  if (bufferResized) {
-    VkHelper::updateSphereComputeDescriptorSets(mRenderData);
-  }
-
-  int sphereModelOffset = 0;
-  for (const auto& model : mModelInstCamData.micModelList) {
-    if (!model->hasAnimations()) {
-      continue;
-    }
-    std::string modelName = model->getModelFileName();
-    std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[modelName];
-
-    size_t numberOfBones = model->getBoneList().size();
-    size_t numInstances = instances.size();
-
-    size_t numberOfSpheres = numInstances * numberOfBones;
-    size_t trsMatrixSize = numInstances * numberOfBones * 3 * sizeof(glm::vec4);
-    size_t bufferMatrixSize = numInstances * numberOfBones * sizeof(glm::mat4);
-
-    mSphereWorldPosMatrices.clear();
-    mSphereWorldPosMatrices.resize(numInstances);
-
-    mSpherePerInstanceAnimData.clear();
-    mSpherePerInstanceAnimData.resize(numInstances);
-
-    for (size_t i = 0; i < numInstances; ++i) {
-      InstanceSettings instSettings = instances.at(i)->getInstanceSettings();
-
-      PerInstanceAnimData animData{};
-      animData.firstAnimClipNum = instSettings.isFirstAnimClipNr;
-      animData.secondAnimClipNum = instSettings.isSecondAnimClipNr;
-      animData.firstClipReplayTimestamp = instSettings.isFirstClipAnimPlayTimePos;
-      animData.secondClipReplayTimestamp = instSettings.isSecondClipAnimPlayTimePos;
-      animData.blendFactor = instSettings.isAnimBlendFactor;
-
-      mSpherePerInstanceAnimData.at(i) = animData;
-
-      mSphereWorldPosMatrices.at(i) = instances.at(i)->getWorldTransformMatrix();
-    }
-
-    // we need to update descriptors after the upload if buffer size changed
-    bool bufferResized = false;
-    mRenderData.rdUploadToUBOTimer.start();
-    bufferResized = ShaderStorageBuffer::uploadSsboData(mRenderData, mRenderData.rdSpherePerInstanceAnimDataBuffers.at(mRenderData.currentFrame), mSpherePerInstanceAnimData);
-    bufferResized |= ShaderStorageBuffer::uploadSsboData(mRenderData, mRenderData.rdSphereModelRootMatrixBuffers.at(mRenderData.currentFrame), mSphereWorldPosMatrices);
-    mRenderData.rdUploadToUBOTime += mRenderData.rdUploadToUBOTimer.stop();
-
-    // resize SSBO if needed
-    bufferResized |= ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdSphereBoneMatrixBuffers.at(mRenderData.currentFrame), bufferMatrixSize);
-    bufferResized |= ShaderStorageBuffer::checkForResize(mRenderData, mRenderData.rdSphereTRSMatrixBuffers.at(mRenderData.currentFrame), trsMatrixSize);
-
-    if (bufferResized) {
-      VkHelper::updateDescriptorSets(mRenderData);
-      VkHelper::updateSphereComputeDescriptorSets(mRenderData);
-    }
-
-    // in case data was changed
-    model->updateBoundingSphereAdjustments(mRenderData);
-
-    // record compute commands
-    VkResult result = vkResetFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdComputeFences.at(mRenderData.currentFrame));
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: compute fence reset failed (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-
-    if (!CommandBuffer::reset(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame), 0)) {
-      Logger::log(1, "%s error: failed to reset compute command buffer\n", __FUNCTION__);
-      return false;
-    }
-
-    if (!CommandBuffer::beginSingleShot(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame))) {
-      Logger::log(1, "%s error: failed to begin compute command buffer\n", __FUNCTION__);
-      return false;
-    }
-
-    VkHelper::runBoundingSphereComputeShaders(mRenderData, model, numInstances, sphereModelOffset);
-    sphereModelOffset += numberOfSpheres;
-    mCollidingSphereCount += numberOfSpheres;
-
-    if (!CommandBuffer::end(mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame))) {
-      Logger::log(1, "%s error: failed to end compute command buffer\n", __FUNCTION__);
-      return false;
-    }
-
-    // submit compute commands
-    VkSubmitInfo computeSubmitInfo{};
-    computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    computeSubmitInfo.commandBufferCount = 1;
-    computeSubmitInfo.pCommandBuffers = &mRenderData.rdComputeCommandBuffers.at(mRenderData.currentFrame);
-
-    result = vkQueueSubmit(mRenderData.rdComputeQueue, 1, &computeSubmitInfo, mRenderData.rdComputeFences.at(mRenderData.currentFrame));
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: failed to submit compute command buffer (%i)\n", __FUNCTION__, result);
-      return false;
-    };
-
-    // we must wait for the compute shaders to finish before we can read the bone data
-    result = vkWaitForFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdComputeFences.at(mRenderData.currentFrame), VK_TRUE, UINT64_MAX);
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: waiting for compute fence failed (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-  }
-
-  if (mCollidingSphereCount > 0) {
-    mRenderData.rdUploadToVBOTimer.start();
-    VertexBuffer::uploadData(mRenderData, mRenderData.rdSphereVertexBuffers.at(mRenderData.currentFrame), mSphereMesh.vertices);
-    mRenderData.rdUploadToVBOTime += mRenderData.rdUploadToVBOTimer.stop();
-  }
-
-  return true;
-}
-
-/* Based on:
-  https://www.saschawillems.de/blog/2017/12/30/new-vulkan-example-cascaded-shadow-mapping/
-*/
+// Based on:
+//  https://www.saschawillems.de/blog/2017/12/30/new-vulkan-example-cascaded-shadow-mapping/
 void VkRenderer::updateShadowMapCascades() {
   std::vector<float> splits;
   splits.resize(mRenderData.SHADOW_MAP_LAYERS);
@@ -4287,48 +3237,58 @@ void VkRenderer::drawScene(bool shadowMapPass, uint32_t shadowMapLayer) {
 }
 
 bool VkRenderer::draw(float deltaTime) {
-  if (!initDraw(deltaTime)) {
-    return false;
+  std::optional<bool> result;
+
+  result = initDraw(deltaTime);
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!acquireDesktopImage()) {
-    return false;
+  result = acquireDesktopImage();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!updateLevelAndModels(deltaTime)) {
-    return false;
+  result = updateLevelAndModels(deltaTime);
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!renderGraphics()) {
-    return false;
+  result = renderGraphics();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!endRendering()) {
-    return false;
+  result = endRendering();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!submitGraphics()) {
-    return false;
+  result = submitGraphics();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!checkForSelection()) {
-    return false;
+  result = checkForSelection();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!presentDesktopImage()) {
-    return false;
+  result = presentDesktopImage();
+  if (result.has_value()) {
+    return result.value();
   }
 
-  if (!finishDraw()) {
-    return false;
+  result = finishDraw();
+  if (result.has_value()) {
+    return result.value();
   }
 
   return true;
 }
 
-bool VkRenderer::initDraw(float deltaTime) {
+std::optional<bool> VkRenderer::initDraw(float deltaTime) {
   if (!mApplicationRunning) {
-    bool result = mApplicationRunning;
     return false;
   }
 
@@ -4369,10 +3329,10 @@ bool VkRenderer::initDraw(float deltaTime) {
   mRenderData.rdPathFindingTime = 0.0f;
   mRenderData.rdLevelGroundNeighborUpdateTime = 0.0f;
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::acquireDesktopImage() {
+std::optional<bool> VkRenderer::acquireDesktopImage() {
   // wait for both fences before getting the new framebuffer image
   std::vector<VkFence> waitFences = {
     mRenderData.rdComputeFences.at(mRenderData.currentFrame),
@@ -4402,11 +3362,12 @@ bool VkRenderer::acquireDesktopImage() {
     }
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::updateLevelAndModels(float deltaTime) {
-  VkResult result = VK_ERROR_UNKNOWN;
+std::optional<bool> VkRenderer::updateLevelAndModels(float deltaTime) {
+  // delete instances that fell out of world in last frame
+  deletePendingInstances();
 
   // calculate the size of the lookup matrix buffer over all animated instances
   size_t boneMatrixBufferSize = 0;
@@ -4464,8 +3425,6 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
   mLevelGroundNeighborsMesh->vertices.clear();
   mInstancePathMesh->vertices.clear();
 
-  mOctree->clear();
-
   for (const auto& model : mModelInstCamData.micModelList) {
     size_t numberOfInstances = mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()].size();
     std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()];
@@ -4481,7 +3440,8 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
         mRenderData.rdMatrixGenerateTimer.start();
 
         for (unsigned int i = 0; i < numberOfInstances; ++i) {
-          InstanceSettings instSettings = instances.at(i)->getInstanceSettings();
+          std::shared_ptr<AssimpInstance> instance = instances.at(i);
+          InstanceSettings instSettings = instance->getInstanceSettings();
 
           // animations
           PerInstanceAnimData animData{};
@@ -4509,7 +3469,7 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
           mPerInstanceAnimData.at(animatedInstancesLookupToStore + i) = animData;
 
           if (mRenderData.rdApplicationMode == appMode::edit) {
-            if (currentSelectedInstance == instances.at(i)) {
+            if (currentSelectedInstance == instance) {
               mSelectedInstance.at(instanceToStore + i).x = mRenderData.rdSelectedInstanceHighlightValue;
             } else {
               mSelectedInstance.at(instanceToStore + i).x = 1.0f;
@@ -4528,21 +3488,7 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
             firstPersonCamBoneMatrixPos = animatedInstancesToStore + i * numberOfBones;
           }
 
-          instances.at(i)->updateAnimation(deltaTime);
-
-          // get AABB and calculate 3D boundaries
-          AABB instanceAABB = model->getAABB(instSettings);
-
-          glm::vec3 position = instanceAABB.getMinPos();
-          glm::vec3 size = glm::vec3(std::fabs(instanceAABB.getMaxPos().x - instanceAABB.getMinPos().x),
-                                     std::fabs(instanceAABB.getMaxPos().y - instanceAABB.getMinPos().y),
-                                     std::fabs(instanceAABB.getMaxPos().z - instanceAABB.getMinPos().z));
-
-          BoundingBox3D box{position, size};
-          instances.at(i)->setBoundingBox(box);
-
-          // add instance to octree
-          mOctree->add(instSettings.isInstanceIndexPosition);
+          instance->updateAnimation(deltaTime);
 
           mRenderData.rdFaceAnimTimer.start();
 
@@ -4556,51 +3502,9 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
 
           mRenderData.rdFaceAnimTime += mRenderData.rdFaceAnimTimer.stop();
 
-          // gravity and ground collisions
-          mRenderData.rdLevelCollisionTimer.start();
+          mWorldPosMatrices.at(instanceToStore + i) = instance->getWorldTransformMatrix();
 
-          // extend the AABB a bit below the feet to allow a better ground collision handling
-          glm::vec3 instBoxPos = position - mRenderData.rdLevelCollisionAABBExtension;
-          glm::vec3 instBoxSize = size + mRenderData.rdLevelCollisionAABBExtension;
-          BoundingBox3D instanceBox{instBoxPos, instBoxSize};
-
-          std::vector<MeshTriangle> collidingTriangles = mTriangleOctree->query(instanceBox);
-          instances.at(i)->setCollidingTriangles(collidingTriangles);
-
-          // set state to "instance on ground" if gravity is disabled
-          bool instanceOnGround = true;
-          if (mRenderData.rdEnableSimpleGravity) {
-            glm::vec3 gravity = glm::vec3(0.0f, GRAVITY_CONSTANT * deltaTime, 0.0f);
-            glm::vec3 footPoint = instSettings.isWorldPosition;
-
-            instanceOnGround = false;
-            for (const auto& tri : collidingTriangles) {
-              // check for slope
-              bool isWalkable = false;
-              if (glm::dot(tri.normal, glm::vec3(0.0f, 1.0f, 0.0f)) >= std::cos(glm::radians(mRenderData.rdMaxLevelGroundSlopeAngle))) {
-                isWalkable = true;
-              }
-
-              if (isWalkable) {
-                std::optional<glm::vec3> result =
-                  Tools::rayTriangleIntersection(instSettings.isWorldPosition - gravity, glm::vec3(0.0f, 1.0f, 0.0f), tri);
-                if (result.has_value()) {
-                  footPoint = result.value();
-                  instances.at(i)->setWorldPosition(footPoint);
-                  instanceOnGround = true;
-                }
-              }
-            }
-          }
-          instances.at(i)->setInstanceOnGround(instanceOnGround);
-          instances.at(i)->applyGravity(deltaTime);
-          mRenderData.rdLevelCollisionTime += mRenderData.rdLevelCollisionTimer.stop();
-
-          // update instance speed and position
-          instances.at(i)->updateInstanceSpeed(deltaTime);
-          instances.at(i)->updateInstancePosition(deltaTime);
-
-          mWorldPosMatrices.at(instanceToStore + i) = instances.at(i)->getWorldTransformMatrix();
+          checkInstanceFellOutOfWorld(instance);
 
           // path update
           if (mRenderData.rdEnableNavigation && instSettings.isNavigationEnabled) {
@@ -4610,7 +3514,7 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
             // invalid target, reset
             if (pathTargetInstance >= mModelInstCamData.micAssimpInstances.size()) {
               pathTargetInstance = -1;
-              instances.at(i)->setPathTargetInstanceId(pathTargetInstance);
+              instance->setPathTargetInstanceId(pathTargetInstance);
             }
 
             int pathTargetInstanceTriIndex = -1;
@@ -4626,21 +3530,21 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
             if ((instSettings.isCurrentGroundTriangleIndex > -1 && pathTargetInstanceTriIndex > -1) &&
               (instSettings.isCurrentGroundTriangleIndex != instSettings.isPathStartTriangleIndex ||
               pathTargetInstanceTriIndex != instSettings.isPathTargetTriangleIndex)) {
-              instances.at(i)->setPathStartTriIndex(instSettings.isCurrentGroundTriangleIndex);
-            instances.at(i)->setPathTargetTriIndex(pathTargetInstanceTriIndex);
+              instance->setPathStartTriIndex(instSettings.isCurrentGroundTriangleIndex);
+            instance->setPathTargetTriIndex(pathTargetInstanceTriIndex);
 
             std::vector<int> pathToTarget = mPathFinder.findPath(instSettings.isCurrentGroundTriangleIndex, pathTargetInstanceTriIndex);
 
             // disable navigation if target is unreachable
             if (pathToTarget.empty()) {
-              instances.at(i)->setNavigationEnabled(false);
-              instances.at(i)->setPathTargetInstanceId(-1);
+              instance->setNavigationEnabled(false);
+              instance->setPathTargetInstanceId(-1);
             } else {
-              instances.at(i)->setPathToTarget(pathToTarget);
+              instance->setPathToTarget(pathToTarget);
             }
               }
 
-              std::vector<int> pathToTarget = instances.at(i)->getPathToTarget();
+              std::vector<int> pathToTarget = instance->getPathToTarget();
 
               // remove first and last elements, they are the target centers of start and target triangles
               if (pathToTarget.size() > 1) {
@@ -4655,10 +3559,10 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
                 /* navigate to next triangle, not the one we may stand on (start triangle)*/
                 int nextTarget = pathToTarget.at(0);
                 glm::vec3 destPos = mPathFinder.getTriangleCenter(nextTarget);
-                instances.at(i)->rotateTo(destPos, deltaTime);
+                instance->rotateTo(destPos, deltaTime);
               } else {
                 // empty path means we have only the target itself left
-                instances.at(i)->rotateTo(pathTargetWorldPos, deltaTime);
+                instance->rotateTo(pathTargetWorldPos, deltaTime);
               }
 
               if (mRenderData.rdDrawInstancePaths && pathTargetInstance > -1) {
@@ -4695,7 +3599,7 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
           int groundTri = instSettings.isCurrentGroundTriangleIndex;
           if (groundTri > -1) {
             std::vector<int> neighborIndices = mPathFinder.getGroundTriangleNeighbors(groundTri);
-            instances.at(i)->setNeighborGroundTriangleIndices(neighborIndices);
+            instance->setNeighborGroundTriangleIndices(neighborIndices);
 
             std::shared_ptr<VkSimpleMesh> neighborMesh =
             mPathFinder.getAsTriangleMesh(neighborIndices, glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.8f), glm::vec3(0.0f, 0.01f, 0.0f));
@@ -4718,10 +3622,11 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
         mRenderData.rdMatrixGenerateTimer.start();
 
         for (unsigned int i = 0; i < numberOfInstances; ++i) {
-          InstanceSettings instSettings = instances.at(i)->getInstanceSettings();
+          std::shared_ptr<AssimpInstance> instance = instances.at(i);
+          InstanceSettings instSettings = instance->getInstanceSettings();
 
           if (mRenderData.rdApplicationMode == appMode::edit) {
-            if (currentSelectedInstance == instances.at(i)) {
+            if (currentSelectedInstance == instance) {
               mSelectedInstance.at(instanceToStore + i).x = mRenderData.rdSelectedInstanceHighlightValue;
             } else {
               mSelectedInstance.at(instanceToStore + i).x = 1.0f;
@@ -4734,84 +3639,16 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
             mSelectedInstance.at(instanceToStore + i).x = 1.0f;
           }
 
-          // get AABB and calculate 3D boundaries
-          AABB instanceAABB = model->getAABB(instSettings);
+          instance->updateInstancePosition(deltaTime);
+          mWorldPosMatrices.at(instanceToStore + i) = instance->getWorldTransformMatrix();
 
-          glm::vec3 position = instanceAABB.getMinPos();
-          glm::vec3 size = glm::vec3(std::fabs(instanceAABB.getMaxPos().x - instanceAABB.getMinPos().x),
-                                     std::fabs(instanceAABB.getMaxPos().y - instanceAABB.getMinPos().y),
-                                     std::fabs(instanceAABB.getMaxPos().z - instanceAABB.getMinPos().z));
-
-          BoundingBox3D box{position, size};
-          instances.at(i)->setBoundingBox(box);
-
-          // add instance to octree
-          mOctree->add(instSettings.isInstanceIndexPosition);
-
-          // gravity and ground collisions
-          mRenderData.rdLevelCollisionTimer.start();
-
-          // extend the AABB a bit below the feet to allow a better ground collision handling
-          glm::vec3 instBoxPos = position - mRenderData.rdLevelCollisionAABBExtension;
-          glm::vec3 instBoxSize = size + mRenderData.rdLevelCollisionAABBExtension;
-          BoundingBox3D instanceBox{instBoxPos, instBoxSize};
-
-          std::vector<MeshTriangle> collidingTriangles = mTriangleOctree->query(instanceBox);
-          instances.at(i)->setCollidingTriangles(collidingTriangles);
-
-          // set state to "instance on ground" if gravity is disabled
-          bool instanceOnGround = true;
-          if (mRenderData.rdEnableSimpleGravity) {
-            glm::vec3 gravity = glm::vec3(0.0f, GRAVITY_CONSTANT * deltaTime, 0.0f);
-            glm::vec3 footPoint = instSettings.isWorldPosition;
-
-            instanceOnGround = false;
-            for (const auto& tri : collidingTriangles) {
-              // check for slope
-              bool isWalkable = false;
-              if (glm::dot(tri.normal, glm::vec3(0.0f, 1.0f, 0.0f)) >= std::cos(glm::radians(mRenderData.rdMaxLevelGroundSlopeAngle))) {
-                isWalkable = true;
-              }
-
-              if (isWalkable) {
-                std::optional<glm::vec3> result = Tools::rayTriangleIntersection(instSettings.isWorldPosition - gravity, glm::vec3(0.0f, 1.0f, 0.0f), tri);
-                if (result.has_value()) {
-                  footPoint = result.value();
-                  instances.at(i)->setWorldPosition(footPoint);
-                  instanceOnGround = true;
-                }
-              }
-            }
-          }
-          instances.at(i)->setInstanceOnGround(instanceOnGround);
-          instances.at(i)->applyGravity(deltaTime);
-          mRenderData.rdLevelCollisionTime += mRenderData.rdLevelCollisionTimer.stop();
-
-          instances.at(i)->updateInstancePosition(deltaTime);
-          mWorldPosMatrices.at(instanceToStore + i) = instances.at(i)->getWorldTransformMatrix();
+          checkInstanceFellOutOfWorld(instance);
         }
 
         mRenderData.rdMatrixGenerateTime += mRenderData.rdMatrixGenerateTimer.stop();
         mRenderData.rdMatricesSize += numberOfInstances * sizeof(glm::mat4);
 
         instanceToStore += numberOfInstances;
-      }
-
-      // remove instances that fell out of the level boundaries
-      for (size_t i = 0; i < numberOfInstances; ++i) {
-        InstanceSettings instSettings = instances.at(i)->getInstanceSettings();
-
-        if (instSettings.isWorldPosition.y < mRenderData.rdWorldStartPos.y - 50.0f) {
-          int instanceId = instSettings.isInstanceIndexPosition;
-          Logger::log(1, "%s warning: instance id %i fell out of level boundaries, deleting\n", __FUNCTION__, instanceId);
-          deleteInstance(getInstanceById(instanceId));
-          if (model->hasAnimations() && !model->getBoneList().empty()) {
-            size_t numberOfBones = model->getBoneList().size();
-            animatedInstancesToStore -= numberOfBones;
-            animatedInstancesLookupToStore -= 1;
-          }
-          instanceToStore -=1;
-        }
       }
     }
   }
@@ -4851,6 +3688,7 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
     VkHelper::updateComputeDescriptorSets(mRenderData);
   }
 
+  VkResult result = VK_ERROR_UNKNOWN;
   if (animatedModelLoaded) {
     // record compute commands
     result = vkResetFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdComputeFences.at(mRenderData.currentFrame));
@@ -5137,17 +3975,6 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
     mRenderData.rdIKTime += mRenderData.rdIKTimer.stop();
   }
 
-  // find interactions
-  mRenderData.rdInteractionTimer.start();
-  findInteractionInstances();
-  mRenderData.rdInteractionTime += mRenderData.rdInteractionTimer.stop();
-
-  // do collision checks after instances were updated and before drawing
-  mRenderData.rdCollisionCheckTimer.start();
-  checkForInstanceCollisions();
-  checkForBorderCollisions();
-  mRenderData.rdCollisionCheckTime += mRenderData.rdCollisionCheckTimer.stop();
-
   handleMovementKeys();
 
   // save mouse wheel (FOV/ortho scale) after 250ms of inactiviy
@@ -5311,6 +4138,7 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
   // Coordinate arrows
   if (mRenderData.rdApplicationMode == appMode::edit) {
     bool drawArrows = false;
+    float arrowScale = 1.0f;
     glm::vec3 coordArrowRotation = glm::vec3(0.0f);
     glm::vec3 coordArrowPosition = glm::vec3(0.0f);
 
@@ -5319,6 +4147,7 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
       drawArrows = true;
       coordArrowPosition = instSettings.isWorldPosition;
       coordArrowRotation = instSettings.isWorldRotation;
+      arrowScale = instSettings.isScale;
     }
 
     if (mModelInstCamData.micSelectedDynLight > 0) {
@@ -5346,6 +4175,7 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
       std::for_each(mCoordArrowsMesh.vertices.begin(), mCoordArrowsMesh.vertices.end(),
                     [=](auto &n) {
                       n.color /= 2.0f;
+                      n.position *= arrowScale * 1.5f;
                       n.position = glm::quat(glm::radians(coordArrowRotation)) * n.position;
                       n.position += coordArrowPosition;
                     });
@@ -5354,40 +4184,6 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
     }
   }
 
-  // bounding spheres
-  mCollidingSphereCount = 0;
-  mSphereVertexCount = 0;
-
-  switch (mRenderData.rdDrawBoundingSpheres) {
-    case collisionDebugDraw::none:
-      break;
-    case collisionDebugDraw::colliding:
-      if (!mModelInstCamData.micInstanceCollisions.empty()) {
-        createCollidingBoundingSpheres();
-        mSphereVertexCount = mCollidingSphereMesh.vertices.size();
-      }
-      break;
-    case collisionDebugDraw::selected:
-      // no bounding sphere collision will be done with this setting, so run the computer shaders just for the selected instance
-      createSelectedBoundingSpheres();
-      mSphereVertexCount = mSphereMesh.vertices.size();
-      break;
-    case collisionDebugDraw::all:
-      createAllBoundingSpheres();
-      mSphereVertexCount = mSphereMesh.vertices.size();
-      break;
-  }
-
-
-  // debug for interaction
-  mRenderData.rdInteractionTimer.start();
-  createInteractionDebug();
-  mRenderData.rdInteractionTime += mRenderData.rdInteractionTimer.stop();
-
-  // reate AABB lines and bounding sphere of selected instance
-  mRenderData.rdCollisionDebugDrawTimer.start();
-  createInstanceCollisionDebug();
-  mRenderData.rdCollisionDebugDrawTime += mRenderData.rdCollisionDebugDrawTimer.stop();
 
   // upload lines
   if (mLineIndexCount > 0) {
@@ -5403,7 +4199,6 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
   if (mRenderData.rdApplicationMode == appMode::edit) {
     mUserInterface.hideMouse(mMouseLock);
     mUserInterface.createSettingsWindow(mRenderData, mModelInstCamData);
-    mUserInterface.createPositionsWindow(mRenderData, mModelInstCamData);
     mUserInterface.createDebugWindow(mRenderData);
   }
 
@@ -5420,10 +4215,10 @@ bool VkRenderer::updateLevelAndModels(float deltaTime) {
     mGraphEditor->createNodeEditorWindow(mRenderData, mModelInstCamData);
   }
 
-  return true;
+  return std::nullopt;
 }
 
-bool VkRenderer::renderGraphics() {
+std::optional<bool> VkRenderer::renderGraphics() {
   // start with graphics rendering
   VkResult result = vkResetFences(mRenderData.rdVkbDevice.device, 1, &mRenderData.rdRenderFences.at(mRenderData.currentFrame));
   if (result != VK_SUCCESS) {
@@ -6386,7 +5181,7 @@ bool VkRenderer::renderGraphics() {
   mRenderData.rdCollisionDebugDrawTime += mRenderData.rdCollisionDebugDrawTimer.stop();
 
   if (mRenderData.rdDrawLevelAABB || mRenderData.rdDrawLevelWireframe ||
-      mRenderData.rdDrawLevelOctree || mRenderData.rdDrawIKDebugLines ||
+      mRenderData.rdDrawIKDebugLines ||
       mRenderData.rdDrawInstancePaths || mRenderData.rdDrawNeighborTriangles) {
     vkCmdBindPipeline(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdLinePipeline);
 
@@ -6404,11 +5199,6 @@ bool VkRenderer::renderGraphics() {
   if (mRenderData.rdDrawLevelWireframe && !mLevelWireframeMesh->vertices.empty()) {
     vkCmdBindVertexBuffers(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 0, 1, &mRenderData.rdLevelWireframeVertexBuffers.at(mRenderData.currentFrame).buffer, &offset);
     vkCmdDraw(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), static_cast<uint32_t>(mLevelWireframeMesh->vertices.size()), 1, 0, 0);
-  }
-
-  if (mRenderData.rdDrawLevelOctree && !mLevelOctreeMesh->vertices.empty()) {
-    vkCmdBindVertexBuffers(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 0, 1, &mRenderData.rdLevelOctreeVertexBuffers.at(mRenderData.currentFrame).buffer, &offset);
-    vkCmdDraw(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), static_cast<uint32_t>(mLevelOctreeMesh->vertices.size()), 1, 0, 0);
   }
 
   if (mRenderData.rdDrawIKDebugLines && !mIKFootPointMesh->vertices.empty()) {
@@ -6541,18 +5331,20 @@ bool VkRenderer::renderGraphics() {
     0, nullptr, 0, nullptr,
     1, &secondImageMemoryBarrier // pImageMemoryBarriers
   );
-  return true;
+
+  return std::nullopt;
 }
 
-bool VkRenderer::endRendering() {
+std::optional<bool> VkRenderer::endRendering() {
   if (!CommandBuffer::end(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame))) {
     Logger::log(1, "%s error: failed to end ImGui command buffer\n", __FUNCTION__);
     return false;
   }
-  return true;
+
+  return std::nullopt;
 }
 
-bool VkRenderer::submitGraphics() {
+std::optional<bool> VkRenderer::submitGraphics() {
   // submit command buffer
   VkSubmitInfo submitInfo{};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -6580,10 +5372,11 @@ bool VkRenderer::submitGraphics() {
     Logger::log(1, "%s error: failed to submit draw command buffer (%i)\n", __FUNCTION__, result);
     return false;
   }
-  return true;
+
+  return std::nullopt;
 }
 
-bool VkRenderer::checkForSelection() {
+std::optional<bool> VkRenderer::checkForSelection() {
   // we must wait for the image to be created before we can pick 
   if (mRenderData.rdApplicationMode == appMode::edit) {
     if (mMousePick) {
@@ -6612,10 +5405,11 @@ bool VkRenderer::checkForSelection() {
       mMousePick = false;
     }
   }
-  return true;
+
+  return std::nullopt;
 }
 
-bool VkRenderer::presentDesktopImage() {
+std::optional<bool> VkRenderer::presentDesktopImage() {
   // trigger swapchain image presentation
   VkPresentInfoKHR presentInfo{};
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -6636,18 +5430,17 @@ bool VkRenderer::presentDesktopImage() {
       return false;
     }
   }
-  return true;
+
+  return std::nullopt;
 }
 
-bool VkRenderer::finishDraw() {
+std::optional<bool> VkRenderer::finishDraw() {
   mRenderData.currentFrame = (mRenderData.currentFrame + 1) % mRenderData.rdNumFramesInFlight;
 
-  return true;
+  return std::nullopt;
 }
 
 void VkRenderer::cleanup() {
-  mPhysics.cleanupBox3d(mRenderData, mModelInstCamData);
-
   VkResult result = vkDeviceWaitIdle(mRenderData.rdVkbDevice.device);
   if (result != VK_SUCCESS) {
     Logger::log(1, "%s fatal error: could not wait for device idle (error: %i)\n", __FUNCTION__, result);
@@ -6677,6 +5470,8 @@ void VkRenderer::cleanup() {
 
   VkHelper::cleanupSSAONoiseTexture(mRenderData);
   VkHelper::cleanup(mRenderData);
+
+  mPhysics.cleanupBox3d(mRenderData, mModelInstCamData);
 }
 
 

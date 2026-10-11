@@ -13,7 +13,7 @@ std::shared_ptr<GraphNodeBase> EventNode::clone() {
   return std::shared_ptr<GraphNodeBase>(new EventNode(*this));
 }
 
-void EventNode::draw(ModelInstanceCamData modInstCamData) {
+void EventNode::draw(ModelInstanceCamData &modInstCamData) {
   ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp;
 
   ImNodes::BeginNode(getNodeId());

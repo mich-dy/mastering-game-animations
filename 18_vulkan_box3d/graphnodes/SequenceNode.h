@@ -8,7 +8,7 @@ class SequenceNode : public GraphNodeBase {
   public:
     SequenceNode(int nodeId, int numOut = 3);
 
-    virtual void draw(ModelInstanceCamData modInstCamData) override;
+    virtual void draw(ModelInstanceCamData &modInstCamData) override;
     virtual void update(float deltaTime) override {};
     virtual void activate() override;
     virtual void deactivate(bool informParentNodes) override;

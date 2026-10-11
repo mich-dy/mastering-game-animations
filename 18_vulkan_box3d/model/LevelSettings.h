@@ -1,7 +1,10 @@
 #pragma once
 
 #include <string>
+#include <vector>
+
 #include <glm/glm.hpp>
+#include <box3d/box3d.h>
 
 struct LevelSettings {
   std::string lsLevelFilenamePath;

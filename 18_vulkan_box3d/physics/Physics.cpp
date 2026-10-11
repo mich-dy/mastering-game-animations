@@ -1,24 +1,27 @@
 #include <Physics.h>
 
-#include <shared_mutex>
 #include <condition_variable>
+#include <typeinfo>
+#include <unordered_set>
+
+#include <AssimpLevel.h>
 
 #include <Tools.h>
 
 bool Physics::initBox3d(VkRenderData &renderData, ModelInstanceCamData &modInstCamData) {
   b3WorldDef worldDef = b3DefaultWorldDef();
   worldDef.gravity = b3Vec3{ 0.0f, -10.0f, 0.0f };
-  mBox3DWorldId = b3CreateWorld(&worldDef);
+  renderData.rdBox3DWorldId = b3CreateWorld(&worldDef);
 
-  mPhysicsTimer.registerFunction([&, this]() { updateBox3dPhysics(renderData, modInstCamData); } );
-  mPhysicsTimer.startTimer();
+  renderData.rdPhysicsTimerFunc.registerFunction([&, this]() { updateBox3dPhysicsImpl(renderData, modInstCamData); } );
+  renderData.rdPhysicsTimerFunc.startTimer();
 
   return true;
 }
 
-void Physics::createBox3dPhysicsObject(VkRenderData &renderData, std::shared_ptr<AssimpInstance> instance) {
+void Physics::createBox3dPhysicsObject(VkRenderData &renderData, ModelInstanceCamData &modInstCamData, std::shared_ptr<AssimpInstance> instance) {
   // needs a lock to avoid object updates during physics step
-  mPhysicsTimer.callExtFunctionLocked([&, this]() {
+  renderData.rdPhysicsTimerFunc.callExtFunctionLocked([&, this]() {
     createBox3dPhysicsObjectImpl(renderData, instance);
   });
 }
@@ -28,8 +31,13 @@ void Physics::createBox3dPhysicsObjectImpl(VkRenderData &renderData, std::shared
   std::shared_ptr<AssimpModel> model = instance->getModel();
   ModelSettings modelSettings = model->getModelSettings();
 
-  if (B3_IS_NON_NULL(instSettings.isPhysicsBodyId)) {
+  Logger::log(1, "%s: updating index %i\n", __FUNCTION__, instSettings.isInstanceIndexPosition);
+
+  if (b3Body_IsValid(instSettings.isPhysicsBodyId)) {
+    Logger::log(1, "%s: removing object body index %i\n", __FUNCTION__,
+      instSettings.isPhysicsBodyId.index1);
     b3DestroyBody(instSettings.isPhysicsBodyId);
+    instSettings.isPhysicsBodyId = b3_nullBodyId;
   }
 
   b3BodyDef bodyDef = b3DefaultBodyDef();
@@ -49,13 +57,16 @@ void Physics::createBox3dPhysicsObjectImpl(VkRenderData &renderData, std::shared
   }
   bodyDef.position = Tools::glmToBox3d(instSettings.isWorldPosition);
   bodyDef.rotation = Tools::glmToBox3d(glm::quat(glm::radians(instSettings.isWorldRotation)));
-  instSettings.isPhysicsBodyId = b3CreateBody(mBox3DWorldId, &bodyDef);
+  instSettings.isPhysicsBodyId = b3CreateBody(renderData.rdBox3DWorldId, &bodyDef);
+  Logger::log(1, "%s: created object body index %i\n", __FUNCTION__,
+    instSettings.isPhysicsBodyId.index1);
 
   b3ShapeDef shapeDef = b3DefaultShapeDef();
   shapeDef.density = 1.0f;
   shapeDef.baseMaterial.friction = modelSettings.msPhysicsFrictionCoeff;
   shapeDef.baseMaterial.restitution = modelSettings.msPhysicsRestitutionCoeff;
   shapeDef.baseMaterial.rollingResistance = modelSettings.msPhysicsRollingResistance;
+  shapeDef.enableContactEvents = true;
 
   b3Transform hullTransform{};
   hullTransform.p = Tools::glmToBox3d(modelSettings.msPhysicsHullOffset * instSettings.isScale);
@@ -104,38 +115,51 @@ void Physics::createBox3dPhysicsObjectImpl(VkRenderData &renderData, std::shared
 }
 
 void Physics::createBox3dPhysicsObjects(VkRenderData &renderData, ModelInstanceCamData &modInstCamData) {
-  std::unique_lock<std::shared_mutex> lock(modInstCamData.micMutex);
   for (const auto& model : modInstCamData.micModelList) {
     ModelSettings modelSettings = model->getModelSettings();
     if (modelSettings.msPhysicsEnabled) {
       std::vector<std::shared_ptr<AssimpInstance>> instances = modInstCamData.micAssimpInstancesPerModel[model->getModelFileName()];
       for (auto instance : instances) {
-        createBox3dPhysicsObject(renderData, instance);
+        createBox3dPhysicsObject(renderData, modInstCamData, instance);
       }
+    }
+  }
+  for (const auto &level : modInstCamData.micLevels) {
+    if (level->getTriangleCount() > 0) {
+      level->recalculateBox3dMesh(renderData);
     }
   }
 }
 
-void Physics::doBox3dStep(ModelInstanceCamData &modInstCamData) {
+void Physics::doBox3dStep(VkRenderData &renderData, ModelInstanceCamData &modInstCamData) {
   // TODO: make configurable or move to class header as constants
   float timeStep = 1.0f / 60.0f;
   int subStepCount = 4;
 
-  b3World_Step(mBox3DWorldId, timeStep, subStepCount);
+  if (b3World_IsValid(renderData.rdBox3DWorldId)) {
+    b3World_Step(renderData.rdBox3DWorldId, timeStep, subStepCount);
+  }
+
+  // always update
   updateObjectsFromBox3d(modInstCamData);
 }
 
 void Physics::updateObjectsFromBox3d(ModelInstanceCamData &modInstCamData) {
-  std::unique_lock<std::shared_mutex> lock(modInstCamData.micMutex);
+
   for (const auto& model : modInstCamData.micModelList) {
     ModelSettings modelSettings = model->getModelSettings();
     if (modelSettings.msPhysicsEnabled) {
       std::vector<std::shared_ptr<AssimpInstance>> instances = modInstCamData.micAssimpInstancesPerModel[model->getModelFileName()];
 
       for (auto instance : instances) {
+        if (!instance) {
+          Logger::log(1, "%s error: found invalid instance\n", __FUNCTION__);
+          continue;
+        }
+
         InstanceSettings instSettings = instance->getInstanceSettings();
 
-        if (B3_IS_NON_NULL(instSettings.isPhysicsBodyId)) {
+        if (b3Body_IsValid(instSettings.isPhysicsBodyId)) {
           b3Vec3 position = b3Body_GetPosition(instSettings.isPhysicsBodyId);
           b3Quat rotation = b3Body_GetRotation(instSettings.isPhysicsBodyId);
 
@@ -149,29 +173,76 @@ void Physics::updateObjectsFromBox3d(ModelInstanceCamData &modInstCamData) {
       }
     }
   }
+
+  std::lock_guard<std::mutex> lock(mBox3dShapeToTriangleIndexMapMutex);
+  mBox3dShapeToTriangleIndexMap.clear();
+
+  for (const auto &level : modInstCamData.micLevels) {
+    if (level->getTriangleCount() > 0) {
+      b3BodyId levelBody = level->getBox3dBodyId();
+      if (b3Body_IsValid(levelBody)) {
+        std::unordered_set<int> levelShapes = level->getBox3dShapeIds();
+
+        int bodyContactCapacity = b3Body_GetContactCapacity(levelBody);
+        std::vector<b3ContactData> contactData(bodyContactCapacity);
+        int numContacts = b3Body_GetContactData(levelBody, contactData.data(), bodyContactCapacity);
+        for (int i = 0; i < numContacts; ++i) {
+          auto contact = contactData[i];
+          b3ShapeId shapeA = contact.shapeIdA;
+          b3ShapeId shapeB = contact.shapeIdB;
+
+          int shapeId = B3_NULL_INDEX;
+          if (levelShapes.contains(shapeA.index1)) {
+            shapeId = shapeA.index1;
+          } else if (levelShapes.contains(shapeB.index1)) {
+            shapeId = shapeB.index1;
+          } else {
+            Logger::log(1, "%s error: shape index not found in body\n", __FUNCTION__);
+            continue;
+          }
+
+          for (int j = 0; j < contact.manifoldCount; ++j) {
+            b3Manifold manifold = contact.manifolds[j];
+            for (int k = 0; k < manifold.pointCount; ++k) {
+              b3ManifoldPoint point = manifold.points[k];
+              Logger::log(2, "%s: shape %i, contact %i / manifold %i / point %i has triangle index %i\n",
+                __FUNCTION__, shapeId, i, j, k, point.triangleIndex);
+              mBox3dShapeToTriangleIndexMap[shapeId].push_back(point.triangleIndex);
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
-void Physics::updateBox3dPhysics(VkRenderData &renderData, ModelInstanceCamData &modInstCamData) {
+void Physics::updateBox3dPhysics(VkRenderData &renderData, ModelInstanceCamData &modInstCamData, bool singleStep) {
+  renderData.rdPhysicsTimerFunc.callExtFunctionLocked([&, this]() {
+    updateBox3dPhysicsImpl(renderData, modInstCamData, singleStep);
+  });
+}
+
+void Physics::updateBox3dPhysicsImpl(VkRenderData &renderData, ModelInstanceCamData &modInstCamData, bool singleStep) {
   renderData.rdPhysicsTime = 0.0f;
   renderData.rdPhysicsTimer.start();
 
-  if (renderData.rdPhysicsRunning) {
-    doBox3dStep(modInstCamData);
+  if (renderData.rdPhysicsRunning || singleStep) {
+    doBox3dStep(renderData, modInstCamData);
   }
 
   renderData.rdPhysicsTime = renderData.rdPhysicsTimer.stop();
 }
 
 void Physics::cleanupBox3d(VkRenderData &renderData, ModelInstanceCamData &modInstCamData) {
-  mPhysicsTimer.stopTimer();
-  mPhysicsTimer.cleanupFunctions();
+  renderData.rdPhysicsTimerFunc.stopTimer();
+  renderData.rdPhysicsTimerFunc.cleanupFunctions();
 
-  if (B3_IS_NON_NULL(mBox3DWorldId)) {
-    b3DestroyWorld(mBox3DWorldId);
+  if (b3World_IsValid(renderData.rdBox3DWorldId)) {
+    b3DestroyWorld(renderData.rdBox3DWorldId);
+    renderData.rdBox3DWorldId = b3_nullWorldId;
   }
 
   // cleanup body ids of instances too
-  std::unique_lock<std::shared_mutex> lock(modInstCamData.micMutex);
   for (const auto& model : modInstCamData.micModelList) {
     ModelSettings modelSettings = model->getModelSettings();
     if (modelSettings.msPhysicsEnabled) {
@@ -179,7 +250,7 @@ void Physics::cleanupBox3d(VkRenderData &renderData, ModelInstanceCamData &modIn
 
       for (auto instance : instances) {
         InstanceSettings instSettings = instance->getInstanceSettings();
-        instSettings.isPhysicsBodyId = b3BodyId{};
+        instSettings.isPhysicsBodyId = b3_nullBodyId;
 
         // restore orig position and rotation
         if (!renderData.rdPhysicsRunning) {
@@ -194,8 +265,16 @@ void Physics::cleanupBox3d(VkRenderData &renderData, ModelInstanceCamData &modIn
   }
 }
 
-void Physics::resetBox3d(VkRenderData &renderData, ModelInstanceCamData &modInstaCamData) {
-  cleanupBox3d(renderData, modInstaCamData);
-  initBox3d(renderData, modInstaCamData);
-  createBox3dPhysicsObjects(renderData, modInstaCamData);
+void Physics::resetBox3d(VkRenderData &renderData, ModelInstanceCamData &modInstCamData) {
+  cleanupBox3d(renderData, modInstCamData);
+  initBox3d(renderData, modInstCamData);
+  createBox3dPhysicsObjects(renderData, modInstCamData);
+
+  std::lock_guard<std::mutex> lock(mBox3dShapeToTriangleIndexMapMutex);
+  mBox3dShapeToTriangleIndexMap.clear();
+}
+
+std::unordered_map<int, std::vector<int>> Physics::getShapeToTriangleIndexMap() {
+  std::lock_guard<std::mutex> lock(mBox3dShapeToTriangleIndexMapMutex);
+  return mBox3dShapeToTriangleIndexMap;
 }
