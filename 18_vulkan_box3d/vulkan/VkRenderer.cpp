@@ -245,6 +245,7 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
   mAABBMesh = std::make_shared<VkSimpleMesh>();
   mLevelAABBMesh = std::make_shared<VkSimpleMesh>();
   mLevelWireframeMesh = std::make_shared<VkSimpleMesh>();
+  mLevelPhysicsWireframeMesh = std::make_shared<VkSimpleMesh>();
   mLevelCollidingTriangleMesh = std::make_shared<VkSimpleMesh>();
   mIKFootPointMesh = std::make_shared<VkSimpleMesh>();
   mRenderData.rdLevelWireframeMiniMapMesh = std::make_shared<VkSimpleMesh>();
@@ -1213,6 +1214,22 @@ void VkRenderer::deletePendingInstances() {
   updateTriangleCount();
 }
 
+void VkRenderer::deletePendingLevelsAndModels() {
+  if (mModelInstCamData.micPendingDeleteAssimpModels.size() > 0) {
+    for (const auto& model : mModelInstCamData.micPendingDeleteAssimpModels) {
+      model->cleanup(mRenderData);
+    }
+    mModelInstCamData.micPendingDeleteAssimpModels.clear();
+  }
+
+  if (mModelInstCamData.micPendingDeleteAssimpLevels.size() > 0) {
+    for (const auto& level : mModelInstCamData.micPendingDeleteAssimpLevels) {
+      level->cleanup(mRenderData);
+    }
+    mModelInstCamData.micPendingDeleteAssimpLevels.clear();
+  }
+}
+
 void VkRenderer::cloneInstance(std::shared_ptr<AssimpInstance> instance) {
   std::shared_ptr<AssimpModel> currentModel = instance->getModel();
   std::shared_ptr<AssimpInstance> newInstance = std::make_shared<AssimpInstance>(currentModel);
@@ -1536,9 +1553,8 @@ void VkRenderer::deleteLevel(std::string levelFileName) {
 
   // save level in separate pending deletion list before purging from model list
   if (level && (level->getTriangleCount() > 0)) {
-    Logger::log(1, "%s: -- adding level %s to pending\n", __FUNCTION__, level->getLevelFileName().c_str());
+    Logger::log(1, "%s: -- adding level %s to pending deletion list\n", __FUNCTION__, level->getLevelFileName().c_str());
     mModelInstCamData.micPendingDeleteAssimpLevels.insert(level);
-    level->destroyBox3dMesh();
   }
 
   mModelInstCamData.micLevels.erase(
@@ -1636,6 +1652,7 @@ void VkRenderer::generateLevelVertexData() {
 
   generateLevelAABB();
   generateLevelWireframe();
+  generateLevelPhysicsWireframe();
 
   updateLevelTriangleCount();
 }
@@ -1760,6 +1777,65 @@ void VkRenderer::generateLevelWireframe() {
       return v;
     }
   );
+}
+
+void VkRenderer::generateLevelPhysicsWireframe() {
+  mLevelPhysicsWireframeMesh->vertices.clear();
+
+  for (const auto& level : mModelInstCamData.micLevels) {
+    if (level->getTriangleCount() == 0) {
+      continue;
+    }
+    Logger::log(1, "%s: generating physics wireframe data for level '%s'\n", __FUNCTION__, level->getLevelFileName().c_str());
+
+    std::vector<VkMesh> levelPhysicsMeshes = level->getLevelPhysicsMeshes();
+    LevelSettings levelSettings = level->getLevelSettings();
+
+    for (const auto& mesh : levelPhysicsMeshes) {
+      VkSimpleVertex vert;
+
+      vert.color = glm::vec4(0.6f, 0.7f, 0.7f, 0.5f);
+
+      for (int i = 0; i < mesh.indices.size(); i += 3) {
+        // move wireframe overdraw a bit above the planes
+        glm::vec3 point0 = glm::vec3(mesh.vertices.at(mesh.indices.at(i)).position);
+        glm::vec3 point1 = glm::vec3(mesh.vertices.at(mesh.indices.at(i + 1)).position);
+        glm::vec3 point2 = glm::vec3(mesh.vertices.at(mesh.indices.at(i + 2)).position);
+
+        glm::vec3 normal0 = glm::normalize(point1 - point0);
+        glm::vec3 normal1 = glm::normalize(point2 - point0);
+        glm::vec3 normal = glm::normalize(glm::cross(normal0, normal1));
+
+        const float normalOffsetFactor = 0.02f;
+        glm::vec3 offsetNormal = normal * normalOffsetFactor;
+
+        // move vertices in direction of normal
+        vert.position = point0 + offsetNormal;
+        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+        vert.position = point1 + offsetNormal;
+        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+
+        vert.position = point1 + offsetNormal;
+        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+        vert.position = point2 + offsetNormal;
+        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+
+        vert.position = point2 + offsetNormal;
+        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+        vert.position = point0 + offsetNormal;
+        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+      }
+    }
+  }
+
+  if (!mLevelPhysicsWireframeMesh->vertices.empty()) {
+    mRenderData.rdUploadToVBOTimer.start();
+    for (int i = 0; i < mRenderData.rdNumFramesInFlight; ++i) {
+      VertexBuffer::uploadData(mRenderData, mRenderData.rdLevelPhysicsWireframeVertexBuffers.at(i),
+      mLevelPhysicsWireframeMesh->vertices);
+    }
+    mRenderData.rdUploadToVBOTime += mRenderData.rdUploadToVBOTimer.stop();
+  }
 }
 
 std::vector<int> VkRenderer::getNavTargets() {
@@ -2822,7 +2898,7 @@ void VkRenderer::checkForLevelCollisions() {
               VkSimpleVertex vertex{};
               vertex.color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
 
-              vertex.position = glm::vec4(p.at(0), 1.0f);
+              vertex.position = glm::vec4(p.at(0), 1.0f) ;
               mLevelCollidingTriangleMesh->vertices.push_back(vertex);
               vertex.position = glm::vec4(p.at(1), 1.0f);
               mLevelCollidingTriangleMesh->vertices.push_back(vertex);
@@ -2877,6 +2953,7 @@ void VkRenderer::resetLevelData() {
 
   mRenderData.rdDrawLevelAABB = false;
   mRenderData.rdDrawLevelWireframe = false;
+  mRenderData.rdDrawLevelPhysicsWireframe = false;
   mRenderData.rdDrawLevelWireframeMiniMap = false;
   mRenderData.rdDrawLevelCollisionTriangles = false;
   mRenderData.rdEnableSimpleGravity = false;
@@ -3368,6 +3445,9 @@ std::optional<bool> VkRenderer::acquireDesktopImage() {
 std::optional<bool> VkRenderer::updateLevelAndModels(float deltaTime) {
   // delete instances that fell out of world in last frame
   deletePendingInstances();
+
+  // delete models and levels marked for removal
+  deletePendingLevelsAndModels();
 
   // calculate the size of the lookup matrix buffer over all animated instances
   size_t boneMatrixBufferSize = 0;
@@ -5181,7 +5261,7 @@ std::optional<bool> VkRenderer::renderGraphics() {
   mRenderData.rdCollisionDebugDrawTime += mRenderData.rdCollisionDebugDrawTimer.stop();
 
   if (mRenderData.rdDrawLevelAABB || mRenderData.rdDrawLevelWireframe ||
-      mRenderData.rdDrawIKDebugLines ||
+      mRenderData.rdDrawIKDebugLines || mRenderData.rdDrawLevelPhysicsWireframe ||
       mRenderData.rdDrawInstancePaths || mRenderData.rdDrawNeighborTriangles) {
     vkCmdBindPipeline(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdLinePipeline);
 
@@ -5199,6 +5279,11 @@ std::optional<bool> VkRenderer::renderGraphics() {
   if (mRenderData.rdDrawLevelWireframe && !mLevelWireframeMesh->vertices.empty()) {
     vkCmdBindVertexBuffers(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 0, 1, &mRenderData.rdLevelWireframeVertexBuffers.at(mRenderData.currentFrame).buffer, &offset);
     vkCmdDraw(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), static_cast<uint32_t>(mLevelWireframeMesh->vertices.size()), 1, 0, 0);
+  }
+
+  if (mRenderData.rdDrawLevelPhysicsWireframe && !mLevelPhysicsWireframeMesh->vertices.empty()) {
+    vkCmdBindVertexBuffers(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 0, 1, &mRenderData.rdLevelPhysicsWireframeVertexBuffers.at(mRenderData.currentFrame).buffer, &offset);
+    vkCmdDraw(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), static_cast<uint32_t>(mLevelPhysicsWireframeMesh->vertices.size()), 1, 0, 0);
   }
 
   if (mRenderData.rdDrawIKDebugLines && !mIKFootPointMesh->vertices.empty()) {
@@ -5452,15 +5537,7 @@ void VkRenderer::cleanup() {
     model->cleanup(mRenderData);
   }
 
-  for (const auto& model : mModelInstCamData.micPendingDeleteAssimpModels) {
-    model->cleanup(mRenderData);
-  }
-
   for (const auto& level : mModelInstCamData.micLevels) {
-    level->cleanup(mRenderData);
-  }
-
-  for (const auto& level : mModelInstCamData.micPendingDeleteAssimpLevels) {
     level->cleanup(mRenderData);
   }
 

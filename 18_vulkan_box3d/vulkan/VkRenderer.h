@@ -135,6 +135,7 @@ class VkRenderer {
 
     void checkInstanceFellOutOfWorld(std::shared_ptr<AssimpInstance> instance);
     void deletePendingInstances();
+    void deletePendingLevelsAndModels();
 
     Physics mPhysics{};
     SimpleCubeModel mCubeModel{};
@@ -270,6 +271,7 @@ class VkRenderer {
     void generateLevelVertexData();
     void generateLevelAABB();
     void generateLevelWireframe();
+    void generateLevelPhysicsWireframe();
 
     void resetLevelData();
 
@@ -280,6 +282,7 @@ class VkRenderer {
     AABB mAllLevelAABB{};
     std::shared_ptr<VkSimpleMesh> mLevelAABBMesh = nullptr;
     std::shared_ptr<VkSimpleMesh> mLevelWireframeMesh = nullptr;
+    std::shared_ptr<VkSimpleMesh> mLevelPhysicsWireframeMesh = nullptr;
     std::shared_ptr<VkSimpleMesh> mLevelCollidingTriangleMesh = nullptr;
 
     IKSolver mIKSolver{};

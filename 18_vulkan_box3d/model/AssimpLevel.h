@@ -47,6 +47,7 @@ class AssimpLevel {
     AABB getAABB();
 
     std::vector<VkMesh>& getLevelMeshes();
+    std::vector<VkMesh> getLevelPhysicsMeshes();
 
     bool recalculateBox3dMesh(VkRenderData &renderData);
     bool createBox3dMesh(VkRenderData &renderData);

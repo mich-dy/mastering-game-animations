@@ -1058,6 +1058,11 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     if (ImGui::Button("Reset##PhysicsReset")) {
       modInstCamData.micResetPhysicsCallbackFunction();
     }
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Draw Phys Wire:     ");
+    ImGui::SameLine();
+    ImGui::Checkbox("##DrawLevelPhysicsWireframe", &renderData.rdDrawLevelPhysicsWireframe);
   }
 
   if (ImGui::CollapsingHeader("Deferred Shading")) {
@@ -3636,6 +3641,8 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Base Model:         %s", baseModelName.c_str());
 
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Physics Body id:    %i", settings.isPhysicsBodyId.index1);
 
     if (modelListEmtpy || nullInstanceSelected) {
       ImGui::BeginDisabled();

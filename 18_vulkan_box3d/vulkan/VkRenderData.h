@@ -352,6 +352,7 @@ struct VkRenderData {
 
   bool rdDrawLevelAABB = false;
   bool rdDrawLevelWireframe = false;
+  bool rdDrawLevelPhysicsWireframe = false;
   bool rdDrawLevelOctree = false;
   bool rdDrawLevelCollisionTriangles = false;
 
@@ -446,6 +447,7 @@ struct VkRenderData {
   std::vector<VkVertexBufferData> rdLevelAABBVertexBuffers{};
   std::vector<VkVertexBufferData> rdLevelOctreeVertexBuffers{};
   std::vector<VkVertexBufferData> rdLevelWireframeVertexBuffers{};
+  std::vector<VkVertexBufferData> rdLevelPhysicsWireframeVertexBuffers{};
   std::vector<VkVertexBufferData> rdIKLinesVertexBuffers{};
   std::vector<VkVertexBufferData> rdGroundMeshVertexBuffers{};
   std::vector<VkVertexBufferData> rdGroundMeshNeighborVertexBuffers{};

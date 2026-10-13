@@ -142,8 +142,10 @@ bool AssimpLevel::createBox3dMesh(VkRenderData& renderData) {
 
   b3BodyDef bodyDef = b3DefaultBodyDef();
   bodyDef.type = b3_staticBody;
-  bodyDef.position = Tools::glmToBox3d(mLevelSettings.lsWorldPosition);
-  bodyDef.rotation = Tools::glmToBox3d(glm::quat(glm::radians(mLevelSettings.lsWorldRotation)));
+  // position and rotation are applied on meshes, body remains at origin
+  //bodyDef.position = Tools::glmToBox3d(mLevelSettings.lsWorldPosition);
+  //bodyDef.rotation = Tools::glmToBox3d(glm::quat(mLocalRotationMatrix * mLocalSwapAxisMatrix * glm::vec4(0.0f, -1.0f, 0.0f, 1.0f)));
+  //Tools::glmToBox3d(glm::quat(glm::radians(mLevelSettings.lsWorldRotation)));
 
   mBox3dBodyId = b3CreateBody(renderData.rdBox3DWorldId, &bodyDef);
   Logger::log(1, "%s: created level body index %i\n", __FUNCTION__,
@@ -161,7 +163,10 @@ bool AssimpLevel::createBox3dMesh(VkRenderData& renderData) {
   int meshNum = 0;
   for (const auto& mesh : mLevelMeshes) {
     std::transform(mesh.vertices.begin(), mesh.vertices.end(), std::back_inserter(mBox3dMeshVertices.at(meshNum)),
-      [this](const VkVertex &a) { return Tools::glmToBox3d(glm::vec3(mRootTransformMatrix * a.position)); } );
+      // position.w is used to store UV.x coordinate, force to 1.0f
+      [this](const VkVertex &a) { return Tools::glmToBox3d(glm::vec3(mLevelRootMatrix * glm::vec4(glm::vec3(a.position), 1.0f)));
+      }
+    );
 
     std::transform(mesh.indices.begin(), mesh.indices.end(), std::back_inserter(mBox3dMeshIndices.at(meshNum)),
       [](const uint32_t &a) { return a; });
@@ -203,7 +208,8 @@ bool AssimpLevel::createBox3dMesh(VkRenderData& renderData) {
     shapeDef.enableContactEvents = true;
     //shapeDef.userData = static_cast<void *>(&mLevelMeshes.at(meshNum));
 
-    b3Vec3 scale = Tools::glmToBox3d(glm::vec3(mLevelSettings.lsScale));
+    // scaling is done when transforming the the level vertices to b3Vec3
+    b3Vec3 scale = b3Vec3{1.0f, 1.0f, 1.0f}; //Tools::glmToBox3d(glm::vec3(mLevelSettings.lsScale));
 
     mBox3dShapes.at(meshNum) = b3CreateMeshShape(mBox3dBodyId,
       &shapeDef, mBox3dMeshData.at(meshNum), scale);
@@ -225,7 +231,7 @@ bool AssimpLevel::createBox3dMesh(VkRenderData& renderData) {
 void AssimpLevel::destroyBox3dMesh() {
   for (int i = 0; i < mBox3dShapes.size(); ++i) {
     if (b3Shape_IsValid(mBox3dShapes.at(i))) {
-    Logger::log(1, "%s: removing spahe index %i\n", __FUNCTION__,
+    Logger::log(1, "%s: removing shape index %i\n", __FUNCTION__,
       mBox3dShapes.at(i).index1);
       b3DestroyShape(mBox3dShapes.at(i), true);
       mBox3dShapes.at(i) = b3_nullShapeId;
@@ -339,9 +345,11 @@ std::optional<std::array<glm::vec3, 3>> AssimpLevel::getTriangleDateFromShapeAnd
   glm::vec3 normal = glm::normalize(glm::cross(side1, side2));
 
   const float normalOffsetFactor = 0.02f;
-  glm::vec3 pos1 = (vertex1 + normal * normalOffsetFactor) * mLevelSettings.lsScale;
-  glm::vec3 pos2 = (vertex2 + normal * normalOffsetFactor) * mLevelSettings.lsScale;
-  glm::vec3 pos3 = (vertex3 + normal * normalOffsetFactor) * mLevelSettings.lsScale;
+  glm::vec3 offsetNormal = normal * normalOffsetFactor;
+
+  glm::vec3 pos1 = vertex1 + offsetNormal;
+  glm::vec3 pos2 = vertex2 + offsetNormal;
+  glm::vec3 pos3 = vertex3 + offsetNormal;
 
   return std::array<glm::vec3, 3>( { pos1, pos2, pos3 });
 }
@@ -495,4 +503,32 @@ AABB AssimpLevel::getAABB() {
 
 std::vector<VkMesh>& AssimpLevel::getLevelMeshes() {
   return mLevelMeshes;
+}
+
+std::vector<VkMesh> AssimpLevel::getLevelPhysicsMeshes() {
+  std::vector<VkMesh> physicsMeshes{};
+  physicsMeshes.resize(mBox3dMeshVertices.size());
+
+  for (int i = 0; i < mBox3dMeshVertices.size(); ++i) {
+    std::transform(mBox3dMeshVertices.at(i).begin(), mBox3dMeshVertices.at(i).end(),
+    std::back_inserter(physicsMeshes.at(i).vertices),
+      [](const b3Vec3 &a) {
+        VkVertex v;
+        v.color = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
+        v.position = glm::vec4(Tools::box3dToGlm(a), 1.0f);
+        return v;
+      }
+    );
+  }
+
+  for (int i = 0; i < mBox3dMeshIndices.size(); ++i) {
+    std::transform(mBox3dMeshIndices.at(i).begin(), mBox3dMeshIndices.at(i).end(),
+    std::back_inserter(physicsMeshes.at(i).indices),
+      [](const uint32_t &a) {
+        return a;
+      }
+    );
+  }
+
+  return physicsMeshes;
 }

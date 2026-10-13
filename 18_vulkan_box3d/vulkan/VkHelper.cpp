@@ -3766,6 +3766,11 @@ bool VkHelper::createVertexBuffers(VkRenderData& renderData) {
     return false;
   }
 
+  if (!VertexBuffer::init(renderData, renderData.rdLevelPhysicsWireframeVertexBuffers)) {
+    Logger::log(1, "%s error: could not create level physics wireframe vertex buffer\n", __FUNCTION__);
+    return false;
+  }
+
   if (!VertexBuffer::init(renderData, renderData.rdIKLinesVertexBuffers)) {
     Logger::log(1, "%s error: could not create IK Lines vertex buffer\n", __FUNCTION__);
     return false;
@@ -4910,6 +4915,7 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   VertexBuffer::cleanup(renderData, renderData.rdLevelAABBVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdLevelOctreeVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdLevelWireframeVertexBuffers);
+  VertexBuffer::cleanup(renderData, renderData.rdLevelPhysicsWireframeVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdIKLinesVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdGroundMeshVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdGroundMeshNeighborVertexBuffers);
