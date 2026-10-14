@@ -431,6 +431,8 @@ bool VkRenderer::loadConfigFile(std::string configFileName) {
 
   resetLevelData();
 
+  deletePendingLevelsAndModels();
+
   // load level data
   std::vector<LevelSettings> savedLevelSettings = parser.getLevelConfigs();
   if (savedLevelSettings.empty()) {
@@ -722,6 +724,7 @@ bool VkRenderer::saveConfigFile(std::string configFileName) {
 void VkRenderer::createEmptyConfig() {
   removeAllModelsAndInstances();
   resetLevelData();
+  deletePendingLevelsAndModels();
   loadDefaultFreeCam();
   resetLightData();
 }

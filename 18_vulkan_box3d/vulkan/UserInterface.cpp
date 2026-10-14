@@ -3641,8 +3641,6 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Base Model:         %s", baseModelName.c_str());
 
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text("Physics Body id:    %i", settings.isPhysicsBodyId.index1);
 
     if (modelListEmtpy || nullInstanceSelected) {
       ImGui::BeginDisabled();
