@@ -181,7 +181,7 @@ void Physics::updateObjectsFromBox3d(ModelInstanceCamData &modInstCamData) {
     if (level->getTriangleCount() > 0) {
       b3BodyId levelBody = level->getBox3dBodyId();
       if (b3Body_IsValid(levelBody)) {
-        std::unordered_set<int> levelShapes = level->getBox3dShapeIds();
+        b3ShapeId levelShape = level->getBox3dShapeId();
 
         int bodyContactCapacity = b3Body_GetContactCapacity(levelBody);
         std::vector<b3ContactData> contactData(bodyContactCapacity);
@@ -192,9 +192,9 @@ void Physics::updateObjectsFromBox3d(ModelInstanceCamData &modInstCamData) {
           b3ShapeId shapeB = contact.shapeIdB;
 
           int shapeId = B3_NULL_INDEX;
-          if (levelShapes.contains(shapeA.index1)) {
+          if (levelShape.index1 == shapeA.index1) {
             shapeId = shapeA.index1;
-          } else if (levelShapes.contains(shapeB.index1)) {
+          } else if (levelShape.index1 == shapeB.index1) {
             shapeId = shapeB.index1;
           } else {
             Logger::log(1, "%s error: shape index not found in body\n", __FUNCTION__);

@@ -34,8 +34,6 @@ struct ModelSettings {
   std::map<moveDirection, IdleWalkRunBlending> msIWRBlendings{};
   std::set<std::pair<moveState, moveState>> msAllowedStateOrder{};
 
-  std::vector<glm::vec4> msBoundingSphereAdjustments{};
-
   float msForwardSpeedFactor = 4.0f;
 
   std::map<headMoveDirection, int> msHeadMoveClipMappings{};

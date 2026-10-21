@@ -16,6 +16,7 @@
 #include <ModelLevelPipeline.h>
 #include <ComputePipeline.h>
 #include <LinePipeline.h>
+#include <WireTrianglePipeline.h>
 #include <GridLinePipeline.h>
 #include <GroundMeshPipeline.h>
 #include <SkyboxPipeline.h>
@@ -154,6 +155,7 @@ bool VkHelper::deviceInit(VkRenderData& renderData) {
   vk10features.wideLines = VK_TRUE;
   vk10features.imageCubeArray = VK_TRUE;
   vk10features.multiViewport = VK_TRUE; // required for GL_ARB_shader_viewport_layer_array
+  vk10features.fillModeNonSolid = VK_TRUE; // needed to draw wireframe triangles
 
   // just get the first available device
   vkb::PhysicalDeviceSelector physicalDevSel{renderData.rdVkbInstance};
@@ -402,22 +404,6 @@ bool VkHelper::createSSBOs(VkRenderData& renderData) {
 
   if (!ShaderStorageBuffer::init(renderData, renderData.rdSelectedInstanceBuffers)) {
     Logger::log(1, "%s error: could not create selection SSBO\n", __FUNCTION__);
-    return false;
-  }
-
-  // we must read back data
-  if (!ShaderStorageBuffer::init(renderData, renderData.rdBoundingSphereBuffers)) {
-    Logger::log(1, "%s error: could not create bounding sphere SSBO\n", __FUNCTION__);
-    return false;
-  }
-
-  if (!ShaderStorageBuffer::init(renderData, renderData.rdSphereModelRootMatrixBuffers)) {
-    Logger::log(1, "%s error: could not create nodel root position SSBO\n", __FUNCTION__);
-    return false;
-  }
-
-  if (!ShaderStorageBuffer::init(renderData, renderData.rdSpherePerInstanceAnimDataBuffers)) {
-    Logger::log(1, "%s error: could not create node transform SSBO\n", __FUNCTION__);
     return false;
   }
 
@@ -1025,15 +1011,15 @@ bool VkHelper::createDescriptorLayouts(VkRenderData& renderData) {
     assimpBoneOffsetSsboBind.pImmutableSamplers = nullptr;
     assimpBoneOffsetSsboBind.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-    VkDescriptorSetLayoutBinding assimpBoundingSpheresSsboBind{};
-    assimpBoundingSpheresSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    assimpBoundingSpheresSsboBind.binding = 2;
-    assimpBoundingSpheresSsboBind.descriptorCount = 1;
-    assimpBoundingSpheresSsboBind.pImmutableSamplers = nullptr;
-    assimpBoundingSpheresSsboBind.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    VkDescriptorSetLayoutBinding assimpNodeMatricesSsboBind{};
+    assimpNodeMatricesSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    assimpNodeMatricesSsboBind.binding = 2;
+    assimpNodeMatricesSsboBind.descriptorCount = 1;
+    assimpNodeMatricesSsboBind.pImmutableSamplers = nullptr;
+    assimpNodeMatricesSsboBind.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
     std::vector<VkDescriptorSetLayoutBinding> assimpBoundSpheresPerModelBindings =
-      { assimpParentMatrixSsboBind, assimpBoneOffsetSsboBind, assimpBoundingSpheresSsboBind };
+      { assimpParentMatrixSsboBind, assimpBoneOffsetSsboBind, assimpNodeMatricesSsboBind };
 
     VkDescriptorSetLayoutCreateInfo assimpMatrixMultPerModelCreateInfo{};
     assimpMatrixMultPerModelCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1044,77 +1030,6 @@ bool VkHelper::createDescriptorLayouts(VkRenderData& renderData) {
       nullptr, &renderData.rdAssimpComputeMatrixMultPerModelDescriptorLayout);
     if (result != VK_SUCCESS) {
       Logger::log(1, "%s error: could not create Assimp bounding sphere per model compute buffer descriptor set layout (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-  }
-
-  {
-    // compute bounding spheres shader, global data
-    VkDescriptorSetLayoutBinding assimpNodeMatrixSsboBind{};
-    assimpNodeMatrixSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    assimpNodeMatrixSsboBind.binding = 0;
-    assimpNodeMatrixSsboBind.descriptorCount = 1;
-    assimpNodeMatrixSsboBind.pImmutableSamplers = nullptr;
-    assimpNodeMatrixSsboBind.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-    VkDescriptorSetLayoutBinding assimpWorldPosMatricesSsboBind{};
-    assimpWorldPosMatricesSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    assimpWorldPosMatricesSsboBind.binding = 1;
-    assimpWorldPosMatricesSsboBind.descriptorCount = 1;
-    assimpWorldPosMatricesSsboBind.pImmutableSamplers = nullptr;
-    assimpWorldPosMatricesSsboBind.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-    VkDescriptorSetLayoutBinding boundingSpheresSsboBind{};
-    boundingSpheresSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    boundingSpheresSsboBind.binding = 2;
-    boundingSpheresSsboBind.descriptorCount = 1;
-    boundingSpheresSsboBind.pImmutableSamplers = nullptr;
-    boundingSpheresSsboBind.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-    std::vector<VkDescriptorSetLayoutBinding> assimpMatMultBindings =
-    { assimpNodeMatrixSsboBind, assimpWorldPosMatricesSsboBind, boundingSpheresSsboBind };
-
-    VkDescriptorSetLayoutCreateInfo assimpMatrixMultCreateInfo{};
-    assimpMatrixMultCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    assimpMatrixMultCreateInfo.bindingCount = static_cast<uint32_t>(assimpMatMultBindings.size());
-    assimpMatrixMultCreateInfo.pBindings = assimpMatMultBindings.data();
-
-    result = vkCreateDescriptorSetLayout(renderData.rdVkbDevice.device, &assimpMatrixMultCreateInfo,
-      nullptr, &renderData.rdAssimpComputeBoundingSpheresDescriptorLayout);
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: could not create Assimp bounding spheres global compute buffer descriptor set layout (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-  }
-
-  {
-    // compute bounding spheres shader, per-model data
-    VkDescriptorSetLayoutBinding assimpParentMatrixSsboBind{};
-    assimpParentMatrixSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    assimpParentMatrixSsboBind.binding = 0;
-    assimpParentMatrixSsboBind.descriptorCount = 1;
-    assimpParentMatrixSsboBind.pImmutableSamplers = nullptr;
-    assimpParentMatrixSsboBind.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-    VkDescriptorSetLayoutBinding boundingSphereAdjustmentsSsboBind{};
-    boundingSphereAdjustmentsSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    boundingSphereAdjustmentsSsboBind.binding = 1;
-    boundingSphereAdjustmentsSsboBind.descriptorCount = 1;
-    boundingSphereAdjustmentsSsboBind.pImmutableSamplers = nullptr;
-    boundingSphereAdjustmentsSsboBind.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-    std::vector<VkDescriptorSetLayoutBinding> assimpMatMultPerModelBindings =
-      { assimpParentMatrixSsboBind, boundingSphereAdjustmentsSsboBind};
-
-    VkDescriptorSetLayoutCreateInfo assimpMatrixMultPerModelCreateInfo{};
-    assimpMatrixMultPerModelCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    assimpMatrixMultPerModelCreateInfo.bindingCount = static_cast<uint32_t>(assimpMatMultPerModelBindings.size());
-    assimpMatrixMultPerModelCreateInfo.pBindings = assimpMatMultPerModelBindings.data();
-
-    result = vkCreateDescriptorSetLayout(renderData.rdVkbDevice.device, &assimpMatrixMultPerModelCreateInfo,
-      nullptr, &renderData.rdAssimpComputeBoundingSpheresPerModelDescriptorLayout);
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: could not create Assimp bounding spheres per model compute buffer descriptor set layout (error: %i)\n", __FUNCTION__, result);
       return false;
     }
   }
@@ -1144,6 +1059,40 @@ bool VkHelper::createDescriptorLayouts(VkRenderData& renderData) {
   }
 
   {
+    // wire triangle shader
+    VkDescriptorSetLayoutBinding renderDataUboBind{};
+    renderDataUboBind.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    renderDataUboBind.binding = 0;
+    renderDataUboBind.descriptorCount = 1;
+    renderDataUboBind.pImmutableSamplers = nullptr;
+    renderDataUboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutBinding positionBinding{};
+    positionBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    positionBinding.binding = 1;
+    positionBinding.descriptorCount = 1;
+    positionBinding.pImmutableSamplers = nullptr;
+    positionBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    std::vector<VkDescriptorSetLayoutBinding> wireTriangleBindings = {
+      renderDataUboBind,
+      positionBinding
+    };
+
+    VkDescriptorSetLayoutCreateInfo wireTriangleCreateInfo{};
+    wireTriangleCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    wireTriangleCreateInfo.bindingCount = static_cast<uint32_t>(wireTriangleBindings.size());
+    wireTriangleCreateInfo.pBindings = wireTriangleBindings.data();
+
+    result = vkCreateDescriptorSetLayout(renderData.rdVkbDevice.device, &wireTriangleCreateInfo,
+      nullptr, &renderData.rdWireTriangleDescriptorLayout);
+    if (result != VK_SUCCESS) {
+      Logger::log(1, "%s error: could not create Assimp wire triangle drawing descriptor set layout (error: %i)\n", __FUNCTION__, result);
+      return false;
+    }
+  }
+
+  {
     // sphere shader
     VkDescriptorSetLayoutBinding renderDataUboBind{};
     renderDataUboBind.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1152,22 +1101,22 @@ bool VkHelper::createDescriptorLayouts(VkRenderData& renderData) {
     renderDataUboBind.pImmutableSamplers = nullptr;
     renderDataUboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    VkDescriptorSetLayoutBinding assimpBoundingSpheresSsboBind{};
-    assimpBoundingSpheresSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    assimpBoundingSpheresSsboBind.binding = 1;
-    assimpBoundingSpheresSsboBind.descriptorCount = 1;
-    assimpBoundingSpheresSsboBind.pImmutableSamplers = nullptr;
-    assimpBoundingSpheresSsboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    VkDescriptorSetLayoutBinding assimpSphereDataSsboBind{};
+    assimpSphereDataSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    assimpSphereDataSsboBind.binding = 1;
+    assimpSphereDataSsboBind.descriptorCount = 1;
+    assimpSphereDataSsboBind.pImmutableSamplers = nullptr;
+    assimpSphereDataSsboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     std::vector<VkDescriptorSetLayoutBinding> assimpSphereBindings =
-      { renderDataUboBind, assimpBoundingSpheresSsboBind };
+      { renderDataUboBind, assimpSphereDataSsboBind };
 
-    VkDescriptorSetLayoutCreateInfo assimpBoundingSpheresCreateInfo{};
-    assimpBoundingSpheresCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    assimpBoundingSpheresCreateInfo.bindingCount = static_cast<uint32_t>(assimpSphereBindings.size());
-    assimpBoundingSpheresCreateInfo.pBindings = assimpSphereBindings.data();
+    VkDescriptorSetLayoutCreateInfo assimpSphereDataCreateInfo{};
+    assimpSphereDataCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    assimpSphereDataCreateInfo.bindingCount = static_cast<uint32_t>(assimpSphereBindings.size());
+    assimpSphereDataCreateInfo.pBindings = assimpSphereBindings.data();
 
-    result = vkCreateDescriptorSetLayout(renderData.rdVkbDevice.device, &assimpBoundingSpheresCreateInfo,
+    result = vkCreateDescriptorSetLayout(renderData.rdVkbDevice.device, &assimpSphereDataCreateInfo,
       nullptr, &renderData.rdSphereDescriptorLayout);
     if (result != VK_SUCCESS) {
       Logger::log(1, "%s error: could not create Assimp bounding sphere drawing descriptor set layout (error: %i)\n", __FUNCTION__, result);
@@ -1780,25 +1729,6 @@ bool VkHelper::createDescriptorSets(VkRenderData& renderData) {
   }
 
   {
-    // bounding spheres, global data
-    renderData.rdAssimpComputeBoundingSpheresDescriptorSets.resize(renderData.rdNumFramesInFlight);
-    std::vector<VkDescriptorSetLayout> computeBoundingSphereLayouts(renderData.rdNumFramesInFlight, renderData.rdAssimpComputeBoundingSpheresDescriptorLayout);
-
-    VkDescriptorSetAllocateInfo computeBoundingSpheresDescriptorAllocateInfo{};
-    computeBoundingSpheresDescriptorAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    computeBoundingSpheresDescriptorAllocateInfo.descriptorPool = renderData.rdDescriptorPool;
-    computeBoundingSpheresDescriptorAllocateInfo.descriptorSetCount = static_cast<uint32_t>(renderData.rdNumFramesInFlight);
-    computeBoundingSpheresDescriptorAllocateInfo.pSetLayouts = computeBoundingSphereLayouts.data();
-
-    VkResult result = vkAllocateDescriptorSets(renderData.rdVkbDevice.device, &computeBoundingSpheresDescriptorAllocateInfo,
-      renderData.rdAssimpComputeBoundingSpheresDescriptorSets.data());
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: could not allocate Assimp Bounding Sphere Compute descriptor set (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-  }
-
-  {
     // line-drawing
     renderData.rdLineDescriptorSets.resize(renderData.rdNumFramesInFlight);
     std::vector<VkDescriptorSetLayout> lineLayouts(renderData.rdNumFramesInFlight, renderData.rdLineDescriptorLayout);
@@ -1813,6 +1743,25 @@ bool VkHelper::createDescriptorSets(VkRenderData& renderData) {
       renderData.rdLineDescriptorSets.data());
     if (result != VK_SUCCESS) {
       Logger::log(1, "%s error: could not allocate Assimp line-drawing descriptor set (error: %i)\n", __FUNCTION__, result);
+      return false;
+    }
+  }
+
+  {
+    // wire triangle drawing
+    renderData.rdWireTriangleDescriptorSets.resize(renderData.rdNumFramesInFlight);
+    std::vector<VkDescriptorSetLayout> lineLayouts(renderData.rdNumFramesInFlight, renderData.rdWireTriangleDescriptorLayout);
+
+    VkDescriptorSetAllocateInfo wireTriangleAllocateInfo{};
+    wireTriangleAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    wireTriangleAllocateInfo.descriptorPool = renderData.rdDescriptorPool;
+    wireTriangleAllocateInfo.descriptorSetCount = static_cast<uint32_t>(renderData.rdNumFramesInFlight);
+    wireTriangleAllocateInfo.pSetLayouts = lineLayouts.data();
+
+    VkResult result = vkAllocateDescriptorSets(renderData.rdVkbDevice.device, &wireTriangleAllocateInfo,
+      renderData.rdWireTriangleDescriptorSets.data());
+    if (result != VK_SUCCESS) {
+      Logger::log(1, "%s error: could not allocate Assimp wire triangle drawing descriptor set (error: %i)\n", __FUNCTION__, result);
       return false;
     }
   }
@@ -1972,7 +1921,6 @@ bool VkHelper::createDescriptorSets(VkRenderData& renderData) {
   updateDescriptorSets(renderData);
   updateComputeDescriptorSets(renderData);
   updateLevelDescriptorSets(renderData);
-  updateSphereComputeDescriptorSets(renderData);
   updateIKComputeDescriptorSets(renderData);
 
   return true;
@@ -2426,6 +2374,43 @@ void VkHelper::updateDescriptorSets(VkRenderData& renderData) {
   }
 
   for (int i = 0; i < renderData.rdNumFramesInFlight; ++i) {
+    // wire triangle drawing shader
+    VkDescriptorBufferInfo matrixInfo{};
+    matrixInfo.buffer = renderData.rdRenderUploadDataUBO.buffer;
+    matrixInfo.offset = 0;
+    matrixInfo.range = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo worldPosInfo{};
+    worldPosInfo.buffer = renderData.rdShaderModelRootMatrixBuffers.at(i).buffer;
+    worldPosInfo.offset = 0;
+    worldPosInfo.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet matrixWriteDescriptorSet{};
+    matrixWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    matrixWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    matrixWriteDescriptorSet.dstSet = renderData.rdWireTriangleDescriptorSets.at(i);
+    matrixWriteDescriptorSet.dstBinding = 0;
+    matrixWriteDescriptorSet.descriptorCount = 1;
+    matrixWriteDescriptorSet.pBufferInfo = &matrixInfo;
+
+    VkWriteDescriptorSet posWriteDescriptorSet{};
+    posWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    posWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    posWriteDescriptorSet.dstSet = renderData.rdWireTriangleDescriptorSets.at(i);
+    posWriteDescriptorSet.dstBinding = 1;
+    posWriteDescriptorSet.descriptorCount = 1;
+    posWriteDescriptorSet.pBufferInfo = &worldPosInfo;
+
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets ={
+      matrixWriteDescriptorSet,
+      posWriteDescriptorSet
+    };
+
+    vkUpdateDescriptorSets(renderData.rdVkbDevice.device, static_cast<uint32_t>(writeDescriptorSets.size()),
+      writeDescriptorSets.data(), 0, nullptr);
+  }
+
+  for (int i = 0; i < renderData.rdNumFramesInFlight; ++i) {
     // ground-mesh-drawing shader
     VkDescriptorBufferInfo matrixInfo{};
     matrixInfo.buffer = renderData.rdRenderUploadDataUBO.buffer;
@@ -2594,163 +2579,6 @@ void VkHelper::updateLevelDescriptorSets(VkRenderData& renderData) {
       posWriteDescriptorSet,
       shadowMapCascadeDescriptorSet
     };
-
-    vkUpdateDescriptorSets(renderData.rdVkbDevice.device, static_cast<uint32_t>(writeDescriptorSets.size()),
-      writeDescriptorSets.data(), 0, nullptr);
-  }
-}
-
-void VkHelper::updateSphereComputeDescriptorSets(VkRenderData& renderData) {
-  Logger::log(1, "%s: updating sphere descriptor sets\n", __FUNCTION__);
-
-  for (int i = 0; i < renderData.rdNumFramesInFlight; ++i) {
-    // transform compute shader for bounding spheres
-    VkDescriptorBufferInfo transformInfo{};
-    transformInfo.buffer = renderData.rdSpherePerInstanceAnimDataBuffers.at(i).buffer;
-    transformInfo.offset = 0;
-    transformInfo.range = VK_WHOLE_SIZE;
-
-    VkDescriptorBufferInfo trsInfo{};
-    trsInfo.buffer = renderData.rdSphereTRSMatrixBuffers.at(i).buffer;
-    trsInfo.offset = 0;
-    trsInfo.range = VK_WHOLE_SIZE;
-
-    VkWriteDescriptorSet transformWriteDescriptorSet{};
-    transformWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    transformWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    transformWriteDescriptorSet.dstSet = renderData.rdAssimpComputeSphereTransformDescriptorSets.at(i);
-    transformWriteDescriptorSet.dstBinding = 0;
-    transformWriteDescriptorSet.descriptorCount = 1;
-    transformWriteDescriptorSet.pBufferInfo = &transformInfo;
-
-    VkWriteDescriptorSet trsWriteDescriptorSet{};
-    trsWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    trsWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    trsWriteDescriptorSet.dstSet = renderData.rdAssimpComputeSphereTransformDescriptorSets.at(i);
-    trsWriteDescriptorSet.dstBinding = 1;
-    trsWriteDescriptorSet.descriptorCount = 1;
-    trsWriteDescriptorSet.pBufferInfo = &trsInfo;
-
-    std::vector<VkWriteDescriptorSet> transformWriteDescriptorSets =
-      { transformWriteDescriptorSet, trsWriteDescriptorSet };
-
-    vkUpdateDescriptorSets(renderData.rdVkbDevice.device, static_cast<uint32_t>(transformWriteDescriptorSets.size()),
-       transformWriteDescriptorSets.data(), 0, nullptr);
-  }
-
-  for (int i = 0; i < renderData.rdNumFramesInFlight; ++i) {
-    // matrix multiplication bounding spheres compute shader, global data
-    VkDescriptorBufferInfo trsInfo{};
-    trsInfo.buffer = renderData.rdSphereTRSMatrixBuffers.at(i).buffer;
-    trsInfo.offset = 0;
-    trsInfo.range = VK_WHOLE_SIZE;
-
-    VkDescriptorBufferInfo boneMatrixInfo{};
-    boneMatrixInfo.buffer = renderData.rdSphereBoneMatrixBuffers.at(i).buffer;
-    boneMatrixInfo.offset = 0;
-    boneMatrixInfo.range = VK_WHOLE_SIZE;
-
-    VkWriteDescriptorSet trsWriteDescriptorSet{};
-    trsWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    trsWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    trsWriteDescriptorSet.dstSet = renderData.rdAssimpComputeSphereMatrixMultDescriptorSets.at(i);
-    trsWriteDescriptorSet.dstBinding = 0;
-    trsWriteDescriptorSet.descriptorCount = 1;
-    trsWriteDescriptorSet.pBufferInfo = &trsInfo;
-
-    VkWriteDescriptorSet boneMatrixWriteDescriptorSet{};
-    boneMatrixWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    boneMatrixWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    boneMatrixWriteDescriptorSet.dstSet = renderData.rdAssimpComputeSphereMatrixMultDescriptorSets.at(i);
-    boneMatrixWriteDescriptorSet.dstBinding = 1;
-    boneMatrixWriteDescriptorSet.descriptorCount = 1;
-    boneMatrixWriteDescriptorSet.pBufferInfo = &boneMatrixInfo;
-
-    std::vector<VkWriteDescriptorSet> matrixMultWriteDescriptorSets =
-      { trsWriteDescriptorSet, boneMatrixWriteDescriptorSet };
-
-    vkUpdateDescriptorSets(renderData.rdVkbDevice.device, static_cast<uint32_t>(matrixMultWriteDescriptorSets.size()),
-       matrixMultWriteDescriptorSets.data(), 0, nullptr);
-  }
-
-  for (int i = 0; i < renderData.rdNumFramesInFlight; ++i) {
-    // bounding spheres compute shader, global data
-    VkDescriptorBufferInfo boneMatrixInfo{};
-    boneMatrixInfo.buffer = renderData.rdSphereBoneMatrixBuffers.at(i).buffer;
-    boneMatrixInfo.offset = 0;
-    boneMatrixInfo.range = VK_WHOLE_SIZE;
-
-    VkDescriptorBufferInfo worldPosInfo{};
-    worldPosInfo.buffer = renderData.rdSphereModelRootMatrixBuffers.at(i).buffer;
-    worldPosInfo.offset = 0;
-    worldPosInfo.range = VK_WHOLE_SIZE;
-
-    VkDescriptorBufferInfo boundingSphereInfo{};
-    boundingSphereInfo.buffer = renderData.rdBoundingSphereBuffers.at(i).buffer;
-    boundingSphereInfo.offset = 0;
-    boundingSphereInfo.range = VK_WHOLE_SIZE;
-
-    VkWriteDescriptorSet boneMatrixWriteDescriptorSet{};
-    boneMatrixWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    boneMatrixWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    boneMatrixWriteDescriptorSet.dstSet = renderData.rdAssimpComputeBoundingSpheresDescriptorSets.at(i);
-    boneMatrixWriteDescriptorSet.dstBinding = 0;
-    boneMatrixWriteDescriptorSet.descriptorCount = 1;
-    boneMatrixWriteDescriptorSet.pBufferInfo = &boneMatrixInfo;
-
-    VkWriteDescriptorSet worldPosWriteDescriptorSet{};
-    worldPosWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    worldPosWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    worldPosWriteDescriptorSet.dstSet = renderData.rdAssimpComputeBoundingSpheresDescriptorSets.at(i);
-    worldPosWriteDescriptorSet.dstBinding = 1;
-    worldPosWriteDescriptorSet.descriptorCount = 1;
-    worldPosWriteDescriptorSet.pBufferInfo = &worldPosInfo;
-
-    VkWriteDescriptorSet boundingSphereWriteDescriptorSet{};
-    boundingSphereWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    boundingSphereWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    boundingSphereWriteDescriptorSet.dstSet = renderData.rdAssimpComputeBoundingSpheresDescriptorSets.at(i);
-    boundingSphereWriteDescriptorSet.dstBinding = 2;
-    boundingSphereWriteDescriptorSet.descriptorCount = 1;
-    boundingSphereWriteDescriptorSet.pBufferInfo = &boundingSphereInfo;
-
-    std::vector<VkWriteDescriptorSet> boundingSphereWriteDescriptorSets =
-      { boneMatrixWriteDescriptorSet, worldPosWriteDescriptorSet, boundingSphereWriteDescriptorSet };
-
-    vkUpdateDescriptorSets(renderData.rdVkbDevice.device, static_cast<uint32_t>(boundingSphereWriteDescriptorSets.size()),
-       boundingSphereWriteDescriptorSets.data(), 0, nullptr);
-  }
-
-  for (int i = 0; i < renderData.rdNumFramesInFlight; ++i) {
-    // sphere-drawing shader
-    VkDescriptorBufferInfo matrixInfo{};
-    matrixInfo.buffer = renderData.rdRenderUploadDataUBO.buffer;
-    matrixInfo.offset = 0;
-    matrixInfo.range = VK_WHOLE_SIZE;
-
-    VkDescriptorBufferInfo boundingSpheresInfo{};
-    boundingSpheresInfo.buffer = renderData.rdBoundingSphereBuffers.at(i).buffer;
-    boundingSpheresInfo.offset = 0;
-    boundingSpheresInfo.range = VK_WHOLE_SIZE;
-
-    VkWriteDescriptorSet matrixWriteDescriptorSet{};
-    matrixWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    matrixWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    matrixWriteDescriptorSet.dstSet = renderData.rdSphereDescriptorSets.at(i);
-    matrixWriteDescriptorSet.dstBinding = 0;
-    matrixWriteDescriptorSet.descriptorCount = 1;
-    matrixWriteDescriptorSet.pBufferInfo = &matrixInfo;
-
-    VkWriteDescriptorSet boundingSpheresWriteDescriptorSet{};
-    boundingSpheresWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    boundingSpheresWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    boundingSpheresWriteDescriptorSet.dstSet = renderData.rdSphereDescriptorSets.at(i);
-    boundingSpheresWriteDescriptorSet.dstBinding = 1;
-    boundingSpheresWriteDescriptorSet.descriptorCount = 1;
-    boundingSpheresWriteDescriptorSet.pBufferInfo = &boundingSpheresInfo;
-
-    std::vector<VkWriteDescriptorSet> writeDescriptorSets =
-    { matrixWriteDescriptorSet, boundingSpheresWriteDescriptorSet };
 
     vkUpdateDescriptorSets(renderData.rdVkbDevice.device, static_cast<uint32_t>(writeDescriptorSets.size()),
       writeDescriptorSets.data(), 0, nullptr);
@@ -3403,22 +3231,21 @@ bool VkHelper::createPipelineLayouts(VkRenderData& renderData) {
     return false;
   }
 
-  // bounding spheres compute
-  std::vector<VkDescriptorSetLayout> boundingSpheresLayouts = {
-    renderData.rdAssimpComputeBoundingSpheresDescriptorLayout,
-    renderData.rdAssimpComputeBoundingSpheresPerModelDescriptorLayout };
-
-  if (!PipelineLayout::init(renderData, renderData.rdAssimpComputeBoundingSpheresPipelineLayout, boundingSpheresLayouts, computePushConstants)) {
-    Logger::log(1, "%s error: could not init Assimp bounding spheres compute pipeline layout\n", __FUNCTION__);
-    return false;
-  }
-
   // line drawing
   std::vector<VkDescriptorSetLayout> lineLayouts = {
     renderData.rdLineDescriptorLayout };
 
   if (!PipelineLayout::init(renderData, renderData.rdLinePipelineLayout, lineLayouts)) {
     Logger::log(1, "%s error: could not init Assimp line drawing pipeline layout\n", __FUNCTION__);
+    return false;
+  }
+
+  // wire triangles drawing
+  std::vector<VkDescriptorSetLayout> wireTrianglesLayouts = {
+    renderData.rdWireTriangleDescriptorLayout };
+
+  if (!PipelineLayout::init(renderData, renderData.rdWireTrianglePipelineLayout, wireTrianglesLayouts, pushConstants)) {
+    Logger::log(1, "%s error: could not init Assimp wire triangle drawing pipeline layout\n", __FUNCTION__);
     return false;
   }
 
@@ -3514,48 +3341,48 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
     renderData.rdLightSpheresBufferData.format,
   };
 
-  std::string vertexShaderFile = "shader/assimp.vert.spv";
-  std::string fragmentShaderFile = "shader/assimp.frag.spv";
+  std::string vertexShaderFile = "spv/assimp.vert.spv";
+  std::string fragmentShaderFile = "spv/assimp.frag.spv";
   if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpPipelineLayout,
       renderData.rdAssimpPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/assimp_skinning.vert.spv";
-  fragmentShaderFile = "shader/assimp_skinning.frag.spv";
+  vertexShaderFile = "spv/assimp_skinning.vert.spv";
+  fragmentShaderFile = "spv/assimp_skinning.frag.spv";
   if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpSkinningPipelineLayout,
       renderData.rdAssimpSkinningPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Skinning shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/assimp_selection.vert.spv";
-  fragmentShaderFile = "shader/assimp_selection.frag.spv";
+  vertexShaderFile = "spv/assimp_selection.vert.spv";
+  fragmentShaderFile = "spv/assimp_selection.frag.spv";
   if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpSelectionPipelineLayout,
       renderData.rdAssimpSelectionPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Selection shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/assimp_skinning_selection.vert.spv";
-  fragmentShaderFile = "shader/assimp_skinning_selection.frag.spv";
+  vertexShaderFile = "spv/assimp_skinning_selection.vert.spv";
+  fragmentShaderFile = "spv/assimp_skinning_selection.frag.spv";
   if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpSkinningSelectionPipelineLayout,
       renderData.rdAssimpSkinningSelectionPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Skinning Selection shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/assimp_skinning_morph.vert.spv";
-  fragmentShaderFile = "shader/assimp_skinning_morph.frag.spv";
+  vertexShaderFile = "spv/assimp_skinning_morph.vert.spv";
+  fragmentShaderFile = "spv/assimp_skinning_morph.frag.spv";
   if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpSkinningMorphPipelineLayout,
       renderData.rdAssimpSkinningMorphPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Morph Anim Skinning shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/assimp_skinning_morph_selection.vert.spv";
-  fragmentShaderFile = "shader/assimp_skinning_morph_selection.frag.spv";
+  vertexShaderFile = "spv/assimp_skinning_morph_selection.vert.spv";
+  fragmentShaderFile = "spv/assimp_skinning_morph_selection.frag.spv";
   if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpSkinningMorphSelectionPipelineLayout,
       renderData.rdAssimpSkinningMorphSelectionPipeline,
       vertexShaderFile, fragmentShaderFile)) {
@@ -3563,16 +3390,16 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
     return false;
   }
 
-  vertexShaderFile = "shader/assimp_level.vert.spv";
-  fragmentShaderFile = "shader/assimp_level.frag.spv";
+  vertexShaderFile = "spv/assimp_level.vert.spv";
+  fragmentShaderFile = "spv/assimp_level.frag.spv";
   if (!ModelLevelPipeline::init(renderData, assimpAttachmentFormats, renderData.rdAssimpLevelPipelineLayout,
       renderData.rdAssimpLevelPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Level shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/assimp_groundmesh.vert.spv";
-  fragmentShaderFile = "shader/assimp_groundmesh.frag.spv";
+  vertexShaderFile = "spv/assimp_groundmesh.vert.spv";
+  fragmentShaderFile = "spv/assimp_groundmesh.frag.spv";
   if (!GroundMeshPipeline::init(renderData, compositeAttachmentFormats, renderData.rdLinePipelineLayout,
       renderData.rdGroundMeshPipeline,
       vertexShaderFile, fragmentShaderFile)) {
@@ -3580,148 +3407,149 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
     return false;
   }
 
-  std::string computeShaderFile = "shader/assimp_instance_transform.comp.spv";
+  std::string computeShaderFile = "spv/assimp_instance_transform.comp.spv";
   if (!ComputePipeline::init(renderData, renderData.rdAssimpComputeTransformaPipelineLayout,
       renderData.rdAssimpComputeTransformPipeline, computeShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Transform compute shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  computeShaderFile = "shader/assimp_instance_matrix_mult.comp.spv";
+  computeShaderFile = "spv/assimp_instance_matrix_mult.comp.spv";
   if (!ComputePipeline::init(renderData, renderData.rdAssimpComputeMatrixMultPipelineLayout,
       renderData.rdAssimpComputeMatrixMultPipeline, computeShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Matrix Mult compute shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  computeShaderFile = "shader/assimp_instance_bounding_spheres.comp.spv";
-  if (!ComputePipeline::init(renderData, renderData.rdAssimpComputeBoundingSpheresPipelineLayout,
-      renderData.rdAssimpComputeBoundingSpheresPipeline, computeShaderFile)) {
-    Logger::log(1, "%s error: could not init Assimp Bounding Spheres compute shader pipeline\n", __FUNCTION__);
-    return false;
-  }
-
-  computeShaderFile = "shader/assimp_instance_headmove_transform.comp.spv";
+  computeShaderFile = "spv/assimp_instance_headmove_transform.comp.spv";
   if (!ComputePipeline::init(renderData, renderData.rdAssimpComputeTransformaPipelineLayout,
       renderData.rdAssimpComputeHeadMoveTransformPipeline, computeShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Head Movement Transform compute shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/line.vert.spv";
-  fragmentShaderFile = "shader/line.frag.spv";
+  vertexShaderFile = "spv/line.vert.spv";
+  fragmentShaderFile = "spv/line.frag.spv";
   if (!LinePipeline::init(renderData, compositeAttachmentFormats, renderData.rdLinePipelineLayout,
       renderData.rdLinePipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp line drawing shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/line_sphere.vert.spv";
-  fragmentShaderFile = "shader/line_sphere.frag.spv";
+  vertexShaderFile = "spv/wire_triangles.vert.spv";
+  fragmentShaderFile = "spv/wire_triangles.frag.spv";
+  if (!WireTrianglePipeline::init(renderData, compositeAttachmentFormats, renderData.rdWireTrianglePipelineLayout,
+      renderData.rdWireTrianglePipeline, vertexShaderFile, fragmentShaderFile)) {
+    Logger::log(1, "%s error: could not init Assimp wire triangle drawing shader pipeline\n", __FUNCTION__);
+    return false;
+  }
+
+  vertexShaderFile = "spv/line_sphere.vert.spv";
+  fragmentShaderFile = "spv/line_sphere.frag.spv";
   if (!LinePipeline::init(renderData, compositeAttachmentFormats, renderData.rdSpherePipelineLayout,
       renderData.rdSpherePipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp sphere drawing shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/grid.vert.spv";
-  fragmentShaderFile = "shader/grid.frag.spv";
+  vertexShaderFile = "spv/grid.vert.spv";
+  fragmentShaderFile = "spv/grid.frag.spv";
   if (!GridLinePipeline::init(renderData, compositeAttachmentFormats, renderData.rdLinePipelineLayout,
       renderData.rdGridLinePipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp grid line drawing shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/skybox.vert.spv";
-  fragmentShaderFile = "shader/skybox.frag.spv";
+  vertexShaderFile = "spv/skybox.vert.spv";
+  fragmentShaderFile = "spv/skybox.frag.spv";
   if (!SkyboxPipeline::init(renderData, compositeAttachmentFormats, renderData.rdSkyboxPipelineLayout,
       renderData.rdSkyboxPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp skybox shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/composite.vert.spv";
-  fragmentShaderFile = "shader/composite.frag.spv";
+  vertexShaderFile = "spv/composite.vert.spv";
+  fragmentShaderFile = "spv/composite.frag.spv";
   if (!CompositePipeline::init(renderData, compositeAttachmentFormats, renderData.rdCompositePipelineLayout,
     renderData.rdCompositePipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Composite pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/ssao.vert.spv";
-  fragmentShaderFile = "shader/ssao.frag.spv";
+  vertexShaderFile = "spv/ssao.vert.spv";
+  fragmentShaderFile = "spv/ssao.frag.spv";
   if (!SSAOPipeline::init(renderData, ssaoAttachmentFormats, renderData.rdSSAOPipelineLayout,
     renderData.rdSSAOPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init SSAO pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/ssao_blur.vert.spv";
-  fragmentShaderFile = "shader/ssao_blur.frag.spv";
+  vertexShaderFile = "spv/ssao_blur.vert.spv";
+  fragmentShaderFile = "spv/ssao_blur.frag.spv";
   if (!SSAOPipeline::init(renderData, ssaoBlurAttachmentFormats, renderData.rdSSAOBlurPipelineLayout,
     renderData.rdSSAOBlurPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init SSAO blur pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/shadowmap_assimp.vert.spv";
-  fragmentShaderFile = "shader/shadowmap_assimp.frag.spv";
+  vertexShaderFile = "spv/shadowmap_assimp.vert.spv";
+  fragmentShaderFile = "spv/shadowmap_assimp.frag.spv";
   if (!ShadowMapPipeline::init(renderData, renderData.rdAssimpPipelineLayout,
     renderData.rdShadowMapAssimpPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp shadow map shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/shadowmap_assimp_skinning.vert.spv";
-  fragmentShaderFile = "shader/shadowmap_assimp_skinning.frag.spv";
+  vertexShaderFile = "spv/shadowmap_assimp_skinning.vert.spv";
+  fragmentShaderFile = "spv/shadowmap_assimp_skinning.frag.spv";
   if (!ShadowMapPipeline::init(renderData, renderData.rdAssimpSkinningPipelineLayout,
     renderData.rdShadowMapAssimpSkinningPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Skinning shadow map shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/shadowmap_assimp_skinning_morph.vert.spv";
-  fragmentShaderFile = "shader/shadowmap_assimp_skinning_morph.frag.spv";
+  vertexShaderFile = "spv/shadowmap_assimp_skinning_morph.vert.spv";
+  fragmentShaderFile = "spv/shadowmap_assimp_skinning_morph.frag.spv";
   if (!ShadowMapPipeline::init(renderData, renderData.rdAssimpSkinningMorphPipelineLayout,
     renderData.rdShadowMapAssimpSkinningMorphPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Morph Anim Skinning shadow map shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/shadowmap_assimp_level.vert.spv";
-  fragmentShaderFile = "shader/shadowmap_assimp_level.frag.spv";
+  vertexShaderFile = "spv/shadowmap_assimp_level.vert.spv";
+  fragmentShaderFile = "spv/shadowmap_assimp_level.frag.spv";
   if (!ShadowMapPipeline::init(renderData, renderData.rdAssimpLevelPipelineLayout,
     renderData.rdShadowMapAssimpLevelPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp Level shadow map shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/assimp_post_composite.vert.spv";
-  fragmentShaderFile = "shader/assimp_post_composite.frag.spv";
+  vertexShaderFile = "spv/assimp_post_composite.vert.spv";
+  fragmentShaderFile = "spv/assimp_post_composite.frag.spv";
   if (!ModelLevelPipeline::init(renderData, compositeAttachmentFormats, renderData.rdAssimpPipelineLayout,
     renderData.rdAssimpPostCompositePipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp post composite shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/assimp_post_composite_selection.vert.spv";
-  fragmentShaderFile = "shader/assimp_post_composite_selection.frag.spv";
+  vertexShaderFile = "spv/assimp_post_composite_selection.vert.spv";
+  fragmentShaderFile = "spv/assimp_post_composite_selection.frag.spv";
   if (!ModelLevelPipeline::init(renderData, compositeAttachmentFormats, renderData.rdAssimpSelectionPipelineLayout,
     renderData.rdAssimpPostCompositeSelectionPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp post composite Selection shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/light_sphere.vert.spv";
-  fragmentShaderFile = "shader/light_sphere.frag.spv";
+  vertexShaderFile = "spv/light_sphere.vert.spv";
+  fragmentShaderFile = "spv/light_sphere.frag.spv";
   if (!LightSpherePipeline::init(renderData, lightSphereColorAttachmentFormats, renderData.rdLightSpherePipelineLayout,
     renderData.rdLightSpherePipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init light sphere shader pipeline\n", __FUNCTION__);
     return false;
   }
 
-  vertexShaderFile = "shader/light_sphere_shadow.vert.spv";
-  fragmentShaderFile = "shader/light_sphere_shadow.frag.spv";
+  vertexShaderFile = "spv/light_sphere_shadow.vert.spv";
+  fragmentShaderFile = "spv/light_sphere_shadow.frag.spv";
   if (!LightSpherePipeline::init(renderData, lightSphereColorAttachmentFormats, renderData.rdLightSphereShadowPipelineLayout,
     renderData.rdLightSphereShadowPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init light sphere shadow shader pipeline\n", __FUNCTION__);
@@ -3753,11 +3581,6 @@ bool VkHelper::createVertexBuffers(VkRenderData& renderData) {
 
   if (!VertexBuffer::init(renderData, renderData.rdLevelAABBVertexBuffers)) {
     Logger::log(1, "%s error: could not create level AABB vertex buffer\n", __FUNCTION__);
-    return false;
-  }
-
-  if (!VertexBuffer::init(renderData, renderData.rdLevelOctreeVertexBuffers)) {
-    Logger::log(1, "%s error: could not create level octree vertex buffer\n", __FUNCTION__);
     return false;
   }
 
@@ -4670,98 +4493,6 @@ void VkHelper::runComputeShaders(VkRenderData& renderData, std::shared_ptr<Assim
     &boneMatrixBufferBarrier, 0, nullptr, 0, nullptr);
 }
 
-void VkHelper::runBoundingSphereComputeShaders(VkRenderData& renderData, std::shared_ptr<AssimpModel> model, int numInstances,
-    uint32_t modelOffset) {
-  uint32_t numberOfBones = static_cast<uint32_t>(model->getBoneList().size());
-
-  // node transformation
-  vkCmdBindPipeline(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), VK_PIPELINE_BIND_POINT_COMPUTE,
-    renderData.rdAssimpComputeTransformPipeline);
-
-  VkDescriptorSet &modelTransformDescriptorSet = model->getTransformDescriptorSet();
-  std::vector<VkDescriptorSet> transformComputeSets = { renderData.rdAssimpComputeSphereTransformDescriptorSets.at(renderData.currentFrame), modelTransformDescriptorSet };
-  vkCmdBindDescriptorSets(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), VK_PIPELINE_BIND_POINT_COMPUTE,
-    renderData.rdAssimpComputeTransformaPipelineLayout, 0, static_cast<uint32_t>(transformComputeSets.size()), transformComputeSets.data(), 0, 0);
-
-  renderData.rdUploadToUBOTimer.start();
-  renderData.rdComputeModelData.pkModelOffset = 0;
-  renderData.rdComputeModelData.pkInstanceOffset = 0;
-  vkCmdPushConstants(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), renderData.rdAssimpComputeTransformaPipelineLayout,
-    VK_SHADER_STAGE_COMPUTE_BIT, 0, static_cast<uint32_t>(sizeof(VkComputePushConstants)), &renderData.rdComputeModelData);
-  renderData.rdUploadToUBOTime += renderData.rdUploadToUBOTimer.stop();
-
-  vkCmdDispatch(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), numberOfBones, static_cast<uint32_t>(std::ceil(numInstances / 32.0f)), 1);
-
-  /* memroy barrier between the compute shaders
-   * wait for TRS buffer to be written  */
-  VkMemoryBarrier trsBufferBarrier{};
-  trsBufferBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-  trsBufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-  trsBufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-  vkCmdPipelineBarrier(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1,
-    &trsBufferBarrier, 0, nullptr, 0, nullptr);
-
-  // matrix multiplication
-  vkCmdBindPipeline(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), VK_PIPELINE_BIND_POINT_COMPUTE,
-    renderData.rdAssimpComputeMatrixMultPipeline);
-
-  VkDescriptorSet &modelMatrixMultDescriptorSet = model->getMatrixMultEmptyOffsetDescriptorSet();
-  std::vector<VkDescriptorSet> matrixMultComputeSets =
-    { renderData.rdAssimpComputeSphereMatrixMultDescriptorSets.at(renderData.currentFrame), modelMatrixMultDescriptorSet };
-  vkCmdBindDescriptorSets(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), VK_PIPELINE_BIND_POINT_COMPUTE,
-    renderData.rdAssimpComputeMatrixMultPipelineLayout, 0, static_cast<uint32_t>(matrixMultComputeSets.size()), matrixMultComputeSets.data(), 0, 0);
-
-  renderData.rdUploadToUBOTimer.start();
-  renderData.rdComputeModelData.pkModelOffset = 0;
-  renderData.rdComputeModelData.pkInstanceOffset = 0;
-  vkCmdPushConstants(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), renderData.rdAssimpComputeMatrixMultPipelineLayout,
-    VK_SHADER_STAGE_COMPUTE_BIT, 0, static_cast<uint32_t>(sizeof(VkComputePushConstants)), &renderData.rdComputeModelData);
-  renderData.rdUploadToUBOTime += renderData.rdUploadToUBOTimer.stop();
-
-  vkCmdDispatch(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), numberOfBones, static_cast<uint32_t>(std::ceil(numInstances / 32.0f)), 1);
-
-  /* memroy barrier after compute shader
-   * wait for bone matrix buffer to be written  */
-  VkMemoryBarrier boneMatrixBufferBarrier{};
-  boneMatrixBufferBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-  boneMatrixBufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-  boneMatrixBufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-  vkCmdPipelineBarrier(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1,
-    &boneMatrixBufferBarrier, 0, nullptr, 0, nullptr);
-
-  vkCmdBindPipeline(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), VK_PIPELINE_BIND_POINT_COMPUTE,
-                    renderData.rdAssimpComputeBoundingSpheresPipeline);
-
-  VkDescriptorSet &boundingSpheresDescriptorSet = model->getBoundingSphereDescriptorSet();
-  std::vector<VkDescriptorSet> boundingSphereComputeSets = { renderData.rdAssimpComputeBoundingSpheresDescriptorSets.at(renderData.currentFrame), boundingSpheresDescriptorSet };
-  vkCmdBindDescriptorSets(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), VK_PIPELINE_BIND_POINT_COMPUTE,
-    renderData.rdAssimpComputeBoundingSpheresPipelineLayout, 0, static_cast<uint32_t>(boundingSphereComputeSets.size()), boundingSphereComputeSets.data(), 0, 0);
-
-  renderData.rdUploadToUBOTimer.start();
-  renderData.rdComputeModelData.pkModelOffset = modelOffset;
-  renderData.rdComputeModelData.pkInstanceOffset = 0;
-  vkCmdPushConstants(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), renderData.rdAssimpComputeBoundingSpheresPipelineLayout,
-    VK_SHADER_STAGE_COMPUTE_BIT, 0, static_cast<uint32_t>(sizeof(VkComputePushConstants)), &renderData.rdComputeModelData);
-  renderData.rdUploadToUBOTime += renderData.rdUploadToUBOTimer.stop();
-
-  vkCmdDispatch(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), numberOfBones, static_cast<uint32_t>(std::ceil(numInstances / 32.0f)), 1);
-
-  /* memroy barrier between the compute shaders
-   * wait for bounding sphere buffer to be written  */
-  VkMemoryBarrier boundingSphereBufferBarrier{};
-  boundingSphereBufferBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-  boundingSphereBufferBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-  boundingSphereBufferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-  vkCmdPipelineBarrier(renderData.rdComputeCommandBuffers.at(renderData.currentFrame), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1,
-    &boundingSphereBufferBarrier, 0, nullptr, 0, nullptr);
-}
-
 bool VkHelper::runIKComputeShaders(VkRenderData& renderData, std::shared_ptr<AssimpModel> model, int numInstances, uint32_t modelOffset) {
   uint32_t numberOfBones = static_cast<uint32_t>(model->getBoneList().size());
 
@@ -4868,6 +4599,7 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   ModelLevelPipeline::cleanup(renderData, renderData.rdAssimpPostCompositePipeline);
   ModelLevelPipeline::cleanup(renderData, renderData.rdAssimpPostCompositeSelectionPipeline);
   LinePipeline::cleanup(renderData, renderData.rdLinePipeline);
+  WireTrianglePipeline::cleanup(renderData, renderData.rdWireTrianglePipeline);
   LinePipeline::cleanup(renderData, renderData.rdSpherePipeline);
   GridLinePipeline::cleanup(renderData, renderData.rdGridLinePipeline);
   GroundMeshPipeline::cleanup(renderData, renderData.rdGroundMeshPipeline);
@@ -4885,19 +4617,18 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   ComputePipeline::cleanup(renderData, renderData.rdAssimpComputeTransformPipeline);
   ComputePipeline::cleanup(renderData, renderData.rdAssimpComputeHeadMoveTransformPipeline);
   ComputePipeline::cleanup(renderData, renderData.rdAssimpComputeMatrixMultPipeline);
-  ComputePipeline::cleanup(renderData, renderData.rdAssimpComputeBoundingSpheresPipeline);
 
   PipelineLayout::cleanup(renderData, renderData.rdAssimpPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdAssimpSkinningPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdAssimpComputeTransformaPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdAssimpComputeMatrixMultPipelineLayout);
-  PipelineLayout::cleanup(renderData, renderData.rdAssimpComputeBoundingSpheresPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdAssimpSelectionPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdAssimpSkinningSelectionPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdAssimpSkinningMorphPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdAssimpSkinningMorphSelectionPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdAssimpLevelPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdLinePipelineLayout);
+  PipelineLayout::cleanup(renderData, renderData.rdWireTrianglePipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdSpherePipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdGroundMeshPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdSkyboxPipelineLayout);
@@ -4913,7 +4644,6 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   VertexBuffer::cleanup(renderData, renderData.rdLineVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdSphereVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdLevelAABBVertexBuffers);
-  VertexBuffer::cleanup(renderData, renderData.rdLevelOctreeVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdLevelWireframeVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdLevelPhysicsWireframeVertexBuffers);
   VertexBuffer::cleanup(renderData, renderData.rdIKLinesVertexBuffers);
@@ -4930,9 +4660,6 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   ShaderStorageBuffer::cleanup(renderData, renderData.rdShaderModelRootMatrixBuffers);
   ShaderStorageBuffer::cleanup(renderData, renderData.rdShaderBoneMatrixBuffers);
   ShaderStorageBuffer::cleanup(renderData, renderData.rdSelectedInstanceBuffers);
-  ShaderStorageBuffer::cleanup(renderData, renderData.rdBoundingSphereBuffers);
-  ShaderStorageBuffer::cleanup(renderData, renderData.rdSphereModelRootMatrixBuffers);
-  ShaderStorageBuffer::cleanup(renderData, renderData.rdSpherePerInstanceAnimDataBuffers);
   ShaderStorageBuffer::cleanup(renderData, renderData.rdSphereTRSMatrixBuffers);
   ShaderStorageBuffer::cleanup(renderData, renderData.rdSphereBoneMatrixBuffers);
   ShaderStorageBuffer::cleanup(renderData, renderData.rdFaceAnimPerInstanceDataBuffers);
@@ -4966,6 +4693,8 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, renderData.rdNumFramesInFlight,
     renderData.rdLineDescriptorSets.data());
   vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, renderData.rdNumFramesInFlight,
+    renderData.rdWireTriangleDescriptorSets.data());
+  vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, renderData.rdNumFramesInFlight,
     renderData.rdSphereDescriptorSets.data());
   vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, renderData.rdNumFramesInFlight,
     renderData.rdGroundMeshDescriptorSets.data());
@@ -4989,8 +4718,6 @@ void VkHelper::cleanup(VkRenderData& renderData) {
     renderData.rdAssimpComputeSphereMatrixMultDescriptorSets.data());
   vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, renderData.rdNumFramesInFlight,
     renderData.rdAssimpComputeIKDescriptorSets.data());
-  vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, renderData.rdNumFramesInFlight,
-    renderData.rdAssimpComputeBoundingSpheresDescriptorSets.data());;
 
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpSkinningDescriptorLayout, nullptr);
@@ -4999,8 +4726,6 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpComputeTransformPerModelDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpComputeMatrixMultDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpComputeMatrixMultPerModelDescriptorLayout, nullptr);
-  vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpComputeBoundingSpheresDescriptorLayout, nullptr);
-  vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpComputeBoundingSpheresPerModelDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpSelectionDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpSkinningSelectionDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpSkinningMorphDescriptorLayout, nullptr);
@@ -5008,6 +4733,7 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpSkinningMorphPerModelDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpLevelDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdLineDescriptorLayout, nullptr);
+  vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdWireTriangleDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdSphereDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdGroundMeshDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdSkyboxDescriptorLayout, nullptr);

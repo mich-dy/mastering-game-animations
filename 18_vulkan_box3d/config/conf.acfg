@@ -2,11 +2,11 @@
 version: 13.0
 
 settings:
-  near-clip-plane: 0.4
-  far-clip-plane: 1000
+  near-clip-plane: 0.1
+  far-clip-plane: 100
   orth-nearfar-clip-plane: 40
   selected-model: 1
-  selected-instance: 3
+  selected-instance: 0
   selected-camera: 0
   selected-level: 1
   selected-dynamic-light: 0
@@ -16,7 +16,6 @@ settings:
   interaction-min-range: 1.5
   interaction-max-range: 10
   interaction-fov: 45
-  gravity-enabled: false
   level-collision-ground-slope: 0
   level-collision-max-stairstep-height: 1
   inverse-kinematics-enabled: false
@@ -50,14 +49,14 @@ levels:
     level-file: assets/level/de_dust.glb
     position: [0, 0, 0]
     rotation: [0, 0, 0]
-    scale: 5
+    scale: 1
     swap-axes: false
 
 cameras:
   - camera-name: FreeCam
-    position: [60.4141, 91.59671, 59.866478]
-    view-azimuth: 322.8887
-    view-elevation: -46.999752
+    position: [10.704221, 17.50466, 15.403228]
+    view-azimuth: 339.3883
+    view-elevation: -47.199768
     camera-type: 0
     camera-projection: 0
     field-of-view: 89
@@ -111,9 +110,9 @@ node-trees:
 
 instances:
   - model-file: box.glb
-    position: [25.599485, 44.35852, 37.01492]
+    position: [5, 11, 7]
     rotation: [-50.634575, 0, -1.5144284]
-    scale: 4.9750104
+    scale: 1
     swap-axes: false
     1st-anim-clip-number: 0
     2nd-anim-clip-number: 0
@@ -122,9 +121,9 @@ instances:
     enable-navigation: false
     path-target-instance: -1
   - model-file: box2.glb
-    position: [39.191063, 68.29164, 37.79337]
+    position: [8, 12, 7]
     rotation: [-28.856207, 0, 31.585093]
-    scale: 2.3500004
+    scale: 0.5
     swap-axes: false
     1st-anim-clip-number: 0
     2nd-anim-clip-number: 0
@@ -133,9 +132,9 @@ instances:
     enable-navigation: false
     path-target-instance: -1
   - model-file: sphere.glb
-    position: [53.60048, 48.137432, 18.612396]
+    position: [11, 10, 4]
     rotation: [0, 0, 0]
-    scale: 4.475009
+    scale: 1
     swap-axes: false
     1st-anim-clip-number: 0
     2nd-anim-clip-number: 0

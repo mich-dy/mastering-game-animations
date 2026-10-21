@@ -2,11 +2,11 @@
 
 #include <VkBootstrap.h>
 
-#include <LinePipeline.h>
+#include <GridLinePipeline.h>
 #include <Logger.h>
 #include <Shader.h>
 
-bool LinePipeline::init(VkRenderData& renderData, std::vector<VkFormat> colorAttachmentFormats,
+bool GridLinePipeline::init(VkRenderData& renderData, std::vector<VkFormat> colorAttachmentFormats,
     VkPipelineLayout& pipelineLayout, VkPipeline& pipeline, std::string vertexShaderFilename, std::string fragmentShaderFilename) {
   // shader
   VkShaderModule vertexModule = Shader::loadShader(renderData.rdVkbDevice.device, vertexShaderFilename);
@@ -34,34 +34,12 @@ bool LinePipeline::init(VkRenderData& renderData, std::vector<VkFormat> colorAtt
   std::vector<VkPipelineShaderStageCreateInfo> shaderStagesInfo = { vertexStageInfo, fragmentStageInfo };
 
   // assemble the graphics pipeline itself
-  std::vector<VkVertexInputBindingDescription> vertexBindings = { { 0, static_cast<uint32_t>(sizeof(VkSimpleVertex)), VK_VERTEX_INPUT_RATE_VERTEX } };
-
-  VkVertexInputAttributeDescription positionAttribute{};
-  positionAttribute.binding = 0;
-  positionAttribute.location = 0;
-  positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-  positionAttribute.offset = static_cast<uint32_t>(offsetof(VkSimpleVertex, position));
-
-  VkVertexInputAttributeDescription colorAttribute{};
-  colorAttribute.binding = 0;
-  colorAttribute.location = 1;
-  colorAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-  colorAttribute.offset = static_cast<uint32_t>(offsetof(VkSimpleVertex, color));
-
-  std::vector<VkVertexInputAttributeDescription> attributes{};
-  attributes.emplace_back(positionAttribute);
-  attributes.emplace_back(colorAttribute);
-
   VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
   vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertexInputInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(vertexBindings.size());
-  vertexInputInfo.pVertexBindingDescriptions = vertexBindings.data();
-  vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributes.size());
-  vertexInputInfo.pVertexAttributeDescriptions = attributes.data();
 
   VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
   inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+  inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
 
   // empty structs here, will be set in renderer dynamically
@@ -81,8 +59,7 @@ bool LinePipeline::init(VkRenderData& renderData, std::vector<VkFormat> colorAtt
   rasterizerInfo.rasterizerDiscardEnable = VK_FALSE;
   rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;
   rasterizerInfo.lineWidth = 1.0f;
-  rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-  // use CCW winding
+  rasterizerInfo.cullMode = VK_CULL_MODE_NONE;
   rasterizerInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterizerInfo.depthBiasEnable = VK_FALSE;
 
@@ -96,7 +73,10 @@ bool LinePipeline::init(VkRenderData& renderData, std::vector<VkFormat> colorAtt
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_FALSE;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
     colorBlendAttachments.emplace_back(colorBlendAttachment);
   }
 
@@ -114,8 +94,8 @@ bool LinePipeline::init(VkRenderData& renderData, std::vector<VkFormat> colorAtt
   VkPipelineDepthStencilStateCreateInfo depthStencilInfo{};
   depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
   depthStencilInfo.depthTestEnable = VK_TRUE;
-  depthStencilInfo.depthWriteEnable = VK_TRUE;
-  depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+  depthStencilInfo.depthWriteEnable = VK_FALSE;
+  depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
   depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   depthStencilInfo.minDepthBounds = 0.0f;
   depthStencilInfo.maxDepthBounds = 1.0f;
@@ -169,6 +149,6 @@ bool LinePipeline::init(VkRenderData& renderData, std::vector<VkFormat> colorAtt
   return true;
 }
 
-void LinePipeline::cleanup(VkRenderData &renderData, VkPipeline &pipeline) {
+void GridLinePipeline::cleanup(VkRenderData &renderData, VkPipeline &pipeline) {
   vkDestroyPipeline(renderData.rdVkbDevice.device, pipeline, nullptr);
 }

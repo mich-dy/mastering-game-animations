@@ -183,7 +183,6 @@ class VkRenderer {
     VkSimpleMesh mFullSphereDebugMesh{};
 
     unsigned int mLineIndexCount = 0;
-    uint32_t mCollidingSphereCount = 0;
     uint32_t mSphereVertexCount = 0;
 
     bool mMouseLock = false;
@@ -226,7 +225,7 @@ class VkRenderer {
     void createSettingsContainerCallbacks();
     void clearUndoRedoStacks();
 
-    const std::string mDefaultConfigFileName = "config/_conf.acfg";
+    const std::string mDefaultConfigFileName = "config/conf.acfg";
     bool loadConfigFile(std::string configFileName);
     bool saveConfigFile(std::string configFileName);
     void createEmptyConfig();
@@ -253,7 +252,6 @@ class VkRenderer {
 
     bool createAABBLookup(std::shared_ptr<AssimpModel> model);
     void createAABBDebugLiness(std::vector<std::shared_ptr<AssimpInstance>> instances, glm::vec4 aabbColor);
-    std::map<int, std::vector<glm::vec4>> mBoundingSpheresPerInstance{};
 
     void resetCollisionData();
 

@@ -330,7 +330,6 @@ struct VkRenderData {
   size_t rdNumberOfCollisions = 0;
 
   collisionDebugDraw rdDrawCollisionAABBs = collisionDebugDraw::none;
-  collisionDebugDraw rdDrawBoundingSpheres = collisionDebugDraw::none;
 
   bool rdInteraction = false;
   float rdInteractionMaxRange = 10.0f;
@@ -344,16 +343,8 @@ struct VkRenderData {
   bool rdDrawInteractionRange = false;
   bool rdDrawInteractionFOV = false;
 
-  int rdOctreeThreshold = 10;
-  int rdOctreeMaxDepth = 5;
-
-  int rdLevelOctreeThreshold = 10;
-  int rdLevelOctreeMaxDepth = 5;
-
   bool rdDrawLevelAABB = false;
   bool rdDrawLevelWireframe = false;
-  bool rdDrawLevelPhysicsWireframe = false;
-  bool rdDrawLevelOctree = false;
   bool rdDrawLevelCollisionTriangles = false;
 
   bool rdDrawLevelWireframeMiniMap = false;
@@ -365,8 +356,6 @@ struct VkRenderData {
 
   int rdNumberOfCollidingTriangles = 0;
   int rdNumberOfCollidingGroundTriangles = 0;
-
-  bool rdEnableSimpleGravity = false;
 
   bool rdEnableFeetIK = false;
   int rdNumberOfIkIteratons = 10;
@@ -406,8 +395,9 @@ struct VkRenderData {
   // Box3D
   b3WorldId rdBox3DWorldId = b3_nullWorldId;
   std::atomic<bool> rdPhysicsRunning = { false };
-  bool rdDrawModelPhysicsBodies = false;
   TimerFunc rdPhysicsTimerFunc{};
+  bool rdDrawLevelPhysicsWireframe = false;
+  bool rdDrawInstancePhysicsWireframe = false;
 
   bool rdEnableInfiniteGrid = true;
   std::vector<TRSMatrixData> rdTRSData{};
@@ -445,7 +435,6 @@ struct VkRenderData {
   std::vector<VkVertexBufferData> rdLineVertexBuffers{};
   std::vector<VkVertexBufferData> rdSphereVertexBuffers{};
   std::vector<VkVertexBufferData> rdLevelAABBVertexBuffers{};
-  std::vector<VkVertexBufferData> rdLevelOctreeVertexBuffers{};
   std::vector<VkVertexBufferData> rdLevelWireframeVertexBuffers{};
   std::vector<VkVertexBufferData> rdLevelPhysicsWireframeVertexBuffers{};
   std::vector<VkVertexBufferData> rdIKLinesVertexBuffers{};
@@ -462,11 +451,8 @@ struct VkRenderData {
   std::vector<VkShaderStorageBufferData> rdShaderBoneMatrixBuffers{};
   std::vector<VkShaderStorageBufferData> rdPerInstanceAnimDataBuffers{};
   std::vector<VkShaderStorageBufferData> rdShaderTRSMatrixBuffers{};
-  std::vector<VkShaderStorageBufferData> rdSphereModelRootMatrixBuffers{};
-  std::vector<VkShaderStorageBufferData> rdSpherePerInstanceAnimDataBuffers{};
   std::vector<VkShaderStorageBufferData> rdSphereTRSMatrixBuffers{};
   std::vector<VkShaderStorageBufferData> rdSphereBoneMatrixBuffers{};
-  std::vector<VkShaderStorageBufferData> rdBoundingSphereBuffers{};
   std::vector<VkShaderStorageBufferData> rdFaceAnimPerInstanceDataBuffers{};
   std::vector<VkShaderStorageBufferData> rdShaderLevelRootMatrixBuffers{};
   std::vector<VkShaderStorageBufferData> rdIKBoneMatrixBuffers{};
@@ -515,13 +501,13 @@ struct VkRenderData {
   VkPipelineLayout rdAssimpSkinningPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdAssimpComputeTransformaPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdAssimpComputeMatrixMultPipelineLayout = VK_NULL_HANDLE;
-  VkPipelineLayout rdAssimpComputeBoundingSpheresPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdAssimpSelectionPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdAssimpSkinningSelectionPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdAssimpSkinningMorphPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdAssimpSkinningMorphSelectionPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdAssimpLevelPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdLinePipelineLayout = VK_NULL_HANDLE;
+  VkPipelineLayout rdWireTrianglePipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdSpherePipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdGroundMeshPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdSkyboxPipelineLayout = VK_NULL_HANDLE;
@@ -536,7 +522,6 @@ struct VkRenderData {
   VkPipeline rdAssimpComputeTransformPipeline = VK_NULL_HANDLE;
   VkPipeline rdAssimpComputeHeadMoveTransformPipeline = VK_NULL_HANDLE;
   VkPipeline rdAssimpComputeMatrixMultPipeline = VK_NULL_HANDLE;
-  VkPipeline rdAssimpComputeBoundingSpheresPipeline = VK_NULL_HANDLE;
   VkPipeline rdAssimpComputeIKMatrixMultPipeline = VK_NULL_HANDLE;
   VkPipeline rdAssimpSelectionPipeline = VK_NULL_HANDLE;
   VkPipeline rdAssimpSkinningSelectionPipeline = VK_NULL_HANDLE;
@@ -544,6 +529,7 @@ struct VkRenderData {
   VkPipeline rdAssimpSkinningMorphSelectionPipeline = VK_NULL_HANDLE;
   VkPipeline rdAssimpLevelPipeline = VK_NULL_HANDLE;
   VkPipeline rdLinePipeline = VK_NULL_HANDLE;
+  VkPipeline rdWireTrianglePipeline = VK_NULL_HANDLE;
   VkPipeline rdSpherePipeline = VK_NULL_HANDLE;
   VkPipeline rdGridLinePipeline = VK_NULL_HANDLE;
   VkPipeline rdGroundMeshPipeline = VK_NULL_HANDLE;
@@ -581,8 +567,6 @@ struct VkRenderData {
   VkDescriptorSetLayout rdAssimpComputeTransformPerModelDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdAssimpComputeMatrixMultDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdAssimpComputeMatrixMultPerModelDescriptorLayout = VK_NULL_HANDLE;
-  VkDescriptorSetLayout rdAssimpComputeBoundingSpheresDescriptorLayout = VK_NULL_HANDLE;
-  VkDescriptorSetLayout rdAssimpComputeBoundingSpheresPerModelDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdAssimpSelectionDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdAssimpSkinningSelectionDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdAssimpSkinningMorphDescriptorLayout = VK_NULL_HANDLE;
@@ -590,6 +574,7 @@ struct VkRenderData {
   VkDescriptorSetLayout rdAssimpSkinningMorphPerModelDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdAssimpLevelDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdLineDescriptorLayout = VK_NULL_HANDLE;
+  VkDescriptorSetLayout rdWireTriangleDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdSphereDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdGroundMeshDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdSkyboxDescriptorLayout = VK_NULL_HANDLE;
@@ -609,10 +594,10 @@ struct VkRenderData {
   std::vector<VkDescriptorSet> rdAssimpSkinningMorphSelectionDescriptorSets{};
   std::vector<VkDescriptorSet> rdAssimpComputeSphereTransformDescriptorSets{};
   std::vector<VkDescriptorSet> rdAssimpComputeSphereMatrixMultDescriptorSets{};
-  std::vector<VkDescriptorSet> rdAssimpComputeBoundingSpheresDescriptorSets{};
   std::vector<VkDescriptorSet> rdAssimpComputeIKDescriptorSets{};
   std::vector<VkDescriptorSet> rdAssimpLevelDescriptorSets{};
   std::vector<VkDescriptorSet> rdLineDescriptorSets{};
+  std::vector<VkDescriptorSet> rdWireTriangleDescriptorSets{};
   std::vector<VkDescriptorSet> rdSphereDescriptorSets{};
   std::vector<VkDescriptorSet> rdGroundMeshDescriptorSets{};
   std::vector<VkDescriptorSet> rdSkyboxDescriptorSets{};

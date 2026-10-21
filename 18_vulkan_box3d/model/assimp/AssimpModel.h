@@ -31,6 +31,9 @@ class AssimpModel {
     void drawInstanced(VkRenderData &renderData, uint32_t instanceCount, bool selectionModeActive);
     void drawInstancedNoMorphAnims(VkRenderData &renderData, uint32_t instanceCount, bool selectionModeActive);
     void drawInstancedMorphAnims(VkRenderData &renderData, uint32_t instanceCount, bool selectionModeActive);
+
+    void drawPhysicsMesh(VkRenderData &renderData, uint32_t instanceCount);
+
     unsigned int getTriangleCount();
 
     std::string getModelFileName();
@@ -58,9 +61,6 @@ class AssimpModel {
     VkDescriptorSet& getTransformDescriptorSet();
     VkDescriptorSet& getMatrixMultDescriptorSet();
     VkDescriptorSet& getMatrixMultEmptyOffsetDescriptorSet();
-    VkDescriptorSet& getBoundingSphereDescriptorSet();
-
-    void updateBoundingSphereAdjustments(VkRenderData &renderData);
 
     void setAABBLookup(std::vector<std::vector<AABB>> lookupData);
     AABB getAABB(InstanceSettings instSettings);
@@ -85,6 +85,7 @@ class AssimpModel {
 
     void setPhysicsHullType(physicsHullType hulLType);
     physicsHullType getPhysicsHulLType();
+    void calculatePhysicsMesh(VkRenderData &renderData);
 
     void cleanup(VkRenderData &renderData);
 
@@ -127,9 +128,6 @@ private:
     VkShaderStorageBufferData mInverseBoneMatrixOffsetBuffer{};
     VkShaderStorageBufferData mAnimLookupBuffer{};
 
-    // per-model-and-node adjustments for the spheres
-    VkShaderStorageBufferData mBoundingSphereAdjustmentBuffer{};
-
     // map textures to external or internal texture names
     std::unordered_map<std::string, VkTextureData> mTextures{};
     VkTextureData mPlaceholderTexture{};
@@ -148,8 +146,9 @@ private:
     VkDescriptorSet mTransformPerModelDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet mMatrixMultPerModelDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSet mMatrixMultPerModelEmptyOffsetDescriptorSet = VK_NULL_HANDLE;
-    VkDescriptorSet mBoundingSphereAdjustmentPerModelDescriptorSet = VK_NULL_HANDLE;
-    void updateBoundingSphereDescriptorSet(VkRenderData &renderData);
 
     VkDescriptorSet mMorphAnimPerModelDescriptorSet = VK_NULL_HANDLE;
+
+    VkSimpleMesh mPhysicsMesh{};
+    VkVertexBufferData mPhysicsMeshVertexBuffer{};
 };

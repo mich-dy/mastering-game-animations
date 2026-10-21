@@ -1021,14 +1021,14 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
 
   if (ImGui::CollapsingHeader("Physics")) {
     ImGui::AlignTextToFramePadding();
-    ImGui::Text("Physics Settings:   ");
+    ImGui::Text("Physics Settings:    ");
     ImGui::SameLine();
     if (ImGui::Button("Update Physics Objects")) {
       modInstCamData.micBakePhyiscsDataCallbackFunction();
     }
 
     ImGui::AlignTextToFramePadding();
-    ImGui::Text("Physics Simulation: ");
+    ImGui::Text("Physics Simulation:  ");
     ImGui::SameLine();
 
     if (!renderData.rdPhysicsRunning) {
@@ -1060,9 +1060,14 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     }
 
     ImGui::AlignTextToFramePadding();
-    ImGui::Text("Draw Phys Wire:     ");
+    ImGui::Text("Draw Phys Level Wire:");
     ImGui::SameLine();
     ImGui::Checkbox("##DrawLevelPhysicsWireframe", &renderData.rdDrawLevelPhysicsWireframe);
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Draw Phys Inst Wire: ");
+    ImGui::SameLine();
+    ImGui::Checkbox("##DrawInstancePhysicsWireframe", &renderData.rdDrawInstancePhysicsWireframe);
   }
 
   if (ImGui::CollapsingHeader("Deferred Shading")) {
@@ -2234,7 +2239,6 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     }
   }
 
-  renderData.rdDrawModelPhysicsBodies = false;
   if (ImGui::CollapsingHeader("Models Physics")) {
     bool modelListEmtpy = modInstCamData.micModelList.size() == 1;
 
@@ -2257,9 +2261,8 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
         ImGui::EndDisabled();
       }
 
+      bool physicsBodyChanged = false;
       if (modelSettings.msPhysicsEnabled) {
-        renderData.rdDrawModelPhysicsBodies = true;
-
         // map with hull ytpes
         std::string selectedHullType = "None";
         std::string selectedBodyTime = "None";
@@ -2277,6 +2280,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
             const bool isSelected = (static_cast<int>(modelSettings.msPhysicsBodyType) == i);
             if (ImGui::Selectable(modInstCamData.micPhysicsBodyTypeMap[static_cast<physicsBodyType>(i)].c_str(), isSelected)) {
               modelSettings.msPhysicsBodyType = static_cast<physicsBodyType>(i);
+              physicsBodyChanged = true;
             }
 
             if (isSelected) {
@@ -2300,8 +2304,10 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
             const bool isSelected = (static_cast<int>(modelSettings.msPhysicsHullType) == i);
             if (ImGui::Selectable(modInstCamData.micPhysicsHullTypeMap[static_cast<physicsHullType>(i)].c_str(), isSelected)) {
               modelSettings.msPhysicsHullType = static_cast<physicsHullType>(i);
+              physicsBodyChanged = true;
 
               ModelSettings defaultSettings;
+              modelSettings.msPhysicsHullSize = defaultSettings.msPhysicsHullSize;
               modelSettings.msPhysicsHullOffset = defaultSettings.msPhysicsHullOffset;
               modelSettings.msPhysicsHullRotation = defaultSettings.msPhysicsHullRotation;
               modelSettings.msPhysicsHullScale = defaultSettings.msPhysicsHullScale;
@@ -2321,6 +2327,9 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
           ImGui::SameLine();
           ImGui::SliderFloat3("##PhysicsHullSize", glm::value_ptr(modelSettings.msPhysicsHullSize),
             0.1f, 20.0f, "%.3f", flags);
+          if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+            physicsBodyChanged = true;
+          }
         } else {
           float physicsHullSize = modelSettings.msPhysicsHullSize.x;
           ImGui::AlignTextToFramePadding();
@@ -2330,6 +2339,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
             0.1f, 20.0f, "%.4f", flags);
           if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
             modelSettings.msPhysicsHullSize = glm::vec3(physicsHullSize);
+            physicsBodyChanged = true;
           }
         }
 
@@ -2338,6 +2348,9 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
         ImGui::SameLine();
         ImGui::SliderFloat3("##PhysicsHullPos", glm::value_ptr(modelSettings.msPhysicsHullOffset),
           -10.0f, 10.0f, "%.3f", flags);
+        if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+          physicsBodyChanged = true;
+        }
 
         if (modelSettings.msPhysicsHullType == physicsHullType::sphere) {
           modelSettings.msPhysicsHullRotation = glm::vec3(0.0f);
@@ -2347,6 +2360,9 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
           ImGui::SameLine();
           ImGui::SliderFloat3("##PhysicsHullRot", glm::value_ptr(modelSettings.msPhysicsHullRotation),
             -180.0f, 180.0f, "%.3f", flags);
+          if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+            physicsBodyChanged = true;
+          }
         }
 
         if (modelSettings.msPhysicsHullType == physicsHullType::box) {
@@ -2355,6 +2371,9 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
           ImGui::SameLine();
           ImGui::SliderFloat3("##PhysicsHullScale", glm::value_ptr(modelSettings.msPhysicsHullScale),
             0.001f, 10.0f, "%.3f", flags);
+          if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
+            physicsBodyChanged = true;
+          }
         }
         else{
           float physicsHullScale = modelSettings.msPhysicsHullScale.x;
@@ -2365,6 +2384,7 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
             0.001f, 10.0f, "%.4f", flags);
           if (ImGui::IsItemDeactivatedAfterEdit() || ImGui::IsItemActive()) {
             modelSettings.msPhysicsHullScale = glm::vec3(physicsHullScale);
+            physicsBodyChanged = true;
           }
         }
 
@@ -2372,9 +2392,11 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
         ImGui::SameLine();
         if (ImGui::Button("Reset Values to Defaults##PhysicsHull")) {
           ModelSettings defaultSettings;
+          modelSettings.msPhysicsHullSize = defaultSettings.msPhysicsHullSize;
           modelSettings.msPhysicsHullOffset = defaultSettings.msPhysicsHullOffset;
           modelSettings.msPhysicsHullRotation = defaultSettings.msPhysicsHullRotation;
           modelSettings.msPhysicsHullScale = defaultSettings.msPhysicsHullScale;
+          physicsBodyChanged = true;
         }
 
         ImGui::AlignTextToFramePadding();
@@ -2402,6 +2424,10 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
 
       if (selectedModel) {
         selectedModel->setModelSettings(modelSettings);
+
+        if (physicsBodyChanged) {
+          selectedModel->calculatePhysicsMesh(renderData);
+        }
       }
     }
   }
@@ -2546,11 +2572,6 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     }
 
     ImGui::AlignTextToFramePadding();
-    ImGui::Text("Simple Gravity:    ");
-    ImGui::SameLine();
-    ImGui::Checkbox("##EnableGravity", &renderData.rdEnableSimpleGravity);
-
-    ImGui::AlignTextToFramePadding();
     ImGui::Text("Draw AABB:         ");
     ImGui::SameLine();
     ImGui::Checkbox("##DrawLevelAABB", &renderData.rdDrawLevelAABB);
@@ -2564,27 +2585,6 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     ImGui::Text("Draw Wire Map:     ");
     ImGui::SameLine();
     ImGui::Checkbox("##DrawLevelWireframeMiniMap", &renderData.rdDrawLevelWireframeMiniMap);
-
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text("Draw Octree:       ");
-    ImGui::SameLine();
-    ImGui::Checkbox("##DrawLevelOctree", &renderData.rdDrawLevelOctree);
-
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text("Octree Max Depth:  ");
-    ImGui::SameLine();
-    ImGui::SliderInt("##LevelOctreeMaxDepth", &renderData.rdLevelOctreeMaxDepth, 1, 10, "%d", flags);
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-      recreateLevelData = true;
-    }
-
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text("Octree Threshold:  ");
-    ImGui::SameLine();
-    ImGui::SliderInt("##LevelOctreeThreshold", &renderData.rdLevelOctreeThreshold, 1, 20, "%d", flags);
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-      recreateLevelData = true;
-    }
 
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Draw Ground Tris:  ");
@@ -3297,81 +3297,6 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
       ImGui::SliderFloat("##ModelForwardSpeedFactor", &modSettings.msForwardSpeedFactor,
         0.0f, 10.0f, "%.2f", flags);
       ImGui::PopItemWidth();
-
-      mCurrentModel->setModelSettings(modSettings);
-    }
-  }
-
-  if (ImGui::CollapsingHeader("Model Bounding Sphere Adjustment")) {
-    size_t numberOfInstances = modInstCamData.micAssimpInstances.size() - 1;
-
-    InstanceSettings settings;
-    ModelSettings modSettings;
-
-    static std::vector<std::string> nodeNames;
-    static int selectedNode = 0;
-    static float adjustmentValue = 1.0f;
-    static glm::vec3 positionOffset = glm::vec3(0.0f);
-
-    if (numberOfInstances > 0 && modInstCamData.micSelectedInstance > 0) {
-      mCurrentModel = mCurrentInstance->getModel();
-      settings = mCurrentInstance->getInstanceSettings();
-      modSettings = mCurrentModel->getModelSettings();
-
-      nodeNames = mCurrentModel->getBoneNameList();
-      selectedNode = 0;
-
-      if (mCurrentInstance != modInstCamData.micAssimpInstances.at(modInstCamData.micSelectedInstance)) {
-        mCurrentInstance = modInstCamData.micAssimpInstances.at(modInstCamData.micSelectedInstance);
-        mCurrentModel = mCurrentInstance->getModel();
-        settings = mCurrentInstance->getInstanceSettings();
-        modSettings = mCurrentModel->getModelSettings();
-
-        nodeNames = mCurrentModel->getBoneNameList();
-      }
-
-      glm::vec4 value = modSettings.msBoundingSphereAdjustments.at(selectedNode);
-      adjustmentValue = value.w;
-      positionOffset = glm::vec3(value.x, value.y, value.z);
-
-      if (!modInstCamData.micModelList.at(modInstCamData.micSelectedModel)->getBoneNameList().empty()) {
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Node:    ");
-        ImGui::SameLine();
-        ImGui::PushItemWidth(150.0f);
-        if (ImGui::BeginCombo("##NodeListCombo",
-          nodeNames.at(selectedNode).c_str())) {
-          for (int i = 0; i < nodeNames.size(); ++i) {
-            const bool isSelected = (selectedNode == i);
-            if (ImGui::Selectable(nodeNames.at(i).c_str(), isSelected)) {
-              selectedNode = i;
-
-              glm::vec4 value = modSettings.msBoundingSphereAdjustments.at(selectedNode);
-              adjustmentValue = value.w;
-              positionOffset = glm::vec3(value.x, value.y, value.z);
-            }
-
-            if (isSelected) {
-              ImGui::SetItemDefaultFocus();
-            }
-          }
-          ImGui::EndCombo();
-        }
-        ImGui::PopItemWidth();
-
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Scaling: ");
-        ImGui::SameLine();
-        ImGui::SliderFloat("##SphereScale", &adjustmentValue,
-          0.01f, 10.0f, "%.4f", flags);
-
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Position:");
-        ImGui::SameLine();
-        ImGui::SliderFloat3("##SphereOffset", glm::value_ptr(positionOffset), -1.0f, 1.0f, "%.3f", flags);
-
-        modSettings.msBoundingSphereAdjustments.at(selectedNode) = glm::vec4(positionOffset, adjustmentValue);
-      }
 
       mCurrentModel->setModelSettings(modSettings);
     }
@@ -4130,11 +4055,6 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
       renderData.rdCheckCollisions == collisionChecks::boundingBox)) {
       renderData.rdCheckCollisions = collisionChecks::boundingBox;
     }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("Bounding Spheres##CollCheck",
-      renderData.rdCheckCollisions == collisionChecks::boundingSpheres)) {
-      renderData.rdCheckCollisions = collisionChecks::boundingSpheres;
-    }
 
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Draw AABB Lines:        ");
@@ -4152,29 +4072,6 @@ void UserInterface::createSettingsWindow(VkRenderData& renderData, ModelInstance
     if (ImGui::RadioButton("All##AABB",
       renderData.rdDrawCollisionAABBs == collisionDebugDraw::all)) {
       renderData.rdDrawCollisionAABBs = collisionDebugDraw::all;
-    }
-
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text("Draw Bounding Spheres:  ");
-    ImGui::SameLine();
-    if (ImGui::RadioButton("None##Sphere",
-      renderData.rdDrawBoundingSpheres == collisionDebugDraw::none)) {
-      renderData.rdDrawBoundingSpheres = collisionDebugDraw::none;
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("Colliding##Sphere",
-      renderData.rdDrawBoundingSpheres == collisionDebugDraw::colliding)) {
-      renderData.rdDrawBoundingSpheres = collisionDebugDraw::colliding;
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("Selected##Sphere",
-      renderData.rdDrawBoundingSpheres == collisionDebugDraw::selected)) {
-      renderData.rdDrawBoundingSpheres = collisionDebugDraw::selected;
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("All##Sphere",
-      renderData.rdDrawBoundingSpheres == collisionDebugDraw::all)) {
-      renderData.rdDrawBoundingSpheres = collisionDebugDraw::all;
     }
   }
 

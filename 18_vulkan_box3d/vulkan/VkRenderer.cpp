@@ -348,67 +348,6 @@ bool VkRenderer::init(unsigned int width, unsigned int height) {
   return true;
 }
 
-void VkRenderer::drawBox3DBodyOutlines() {
-  std::shared_ptr<AssimpModel> currentModel = mModelInstCamData.micModelList.at(mModelInstCamData.micSelectedModel);
-  ModelSettings modelSettings = currentModel->getModelSettings();
-
-  std::vector<std::shared_ptr<AssimpInstance>> instances = mModelInstCamData.micAssimpInstancesPerModel[currentModel->getModelFileName()];
-
-  for (auto instance : instances) {
-    InstanceSettings instSettings = instance->getInstanceSettings();
-
-    VkSimpleMesh bodyMesh{};
-    switch (modelSettings.msPhysicsHullType) {
-      case physicsHullType::box:
-      case physicsHullType::cube:
-          bodyMesh = mCubeModel.getVertexData();
-        break;
-      case physicsHullType::sphere:
-          bodyMesh = mSphereModel.getVertexData();
-        break;
-      default:
-        Logger::log(1, "%s error: invalid hull type \n", __FUNCTION__);
-        break;
-    }
-
-    std::for_each(bodyMesh.vertices.begin(), bodyMesh.vertices.end(),
-      [=](auto &n) {
-
-      // first TRS of hull
-      n.position *= modelSettings.msPhysicsHullSize * modelSettings.msPhysicsHullScale;
-      n.position =
-          glm::quat(glm::radians(modelSettings.msPhysicsHullRotation))
-        * n.position;
-      n.position += modelSettings.msPhysicsHullOffset;
-
-      // then TRS of instance
-      n.position *= instSettings.isScale;
-      n.position =
-          glm::quat(glm::radians(instSettings.isWorldRotation))
-        * n.position;
-      n.position += instSettings.isWorldPosition;
-
-      switch (modelSettings.msPhysicsBodyType) {
-        case physicsBodyType::staticBody:
-          n.color = glm::vec3(0.0f, 1.0f, 0.0f);
-          break;
-        case physicsBodyType::kinematicBody:
-          n.color = glm::vec3(1.0f, 1.0f, 0.0f);
-          break;
-        case physicsBodyType::dynamicBody:
-          n.color = glm::vec3(1.0f, 0.0f, 0.0f);
-          break;
-        default:
-          Logger::log(1, "%s error: unknown physics body type\n", __FUNCTION__);
-          break;
-      }
-    });
-    mLineMesh->vertices.insert(mLineMesh->vertices.end(),
-     bodyMesh.vertices.begin(), bodyMesh.vertices.end());
-    mLineIndexCount += bodyMesh.vertices.size();
-  }
-}
-
 
 ModelInstanceCamData& VkRenderer::getModInstCamData() {
   return mModelInstCamData;
@@ -453,7 +392,6 @@ bool VkRenderer::loadConfigFile(std::string configFileName) {
     }
 
     // restore level settings before generating the level data 
-    mRenderData.rdEnableSimpleGravity = parser.getGravityEnabled();
     mRenderData.rdMaxLevelGroundSlopeAngle = parser.getMaxGroundSlopeAngle();
     mRenderData.rdMaxStairstepHeight = parser.getMaxStairStepHeight();
 
@@ -485,14 +423,8 @@ bool VkRenderer::loadConfigFile(std::string configFileName) {
       return false;
     }
 
-    // migration config version 3.0 to 4.0+ 
-    if (yamlFileVersion == "3.0") {
-      Logger::log(1, "%s: adding empty bounding sphere adjustment vector\n", __FUNCTION__);
-      std::vector<glm::vec4> boundingSphereAdjustments = model->getModelSettings().msBoundingSphereAdjustments;
-      modSetting.msBoundingSphereAdjustments = boundingSphereAdjustments;
-    }
-
     model->setModelSettings(modSetting);
+    model->calculatePhysicsMesh(mRenderData);
   }
 
   // restore selected model number
@@ -876,7 +808,6 @@ void VkRenderer::resetCollisionData() {
   mRenderData.rdNumberOfCollisions = 0;
   mRenderData.rdCheckCollisions = collisionChecks::none;
   mRenderData.rdDrawCollisionAABBs = collisionDebugDraw::none;
-  mRenderData.rdDrawBoundingSpheres = collisionDebugDraw::none;
 }
 
 void VkRenderer::loadDefaultFreeCam() {
@@ -1791,43 +1722,41 @@ void VkRenderer::generateLevelPhysicsWireframe() {
     }
     Logger::log(1, "%s: generating physics wireframe data for level '%s'\n", __FUNCTION__, level->getLevelFileName().c_str());
 
-    std::vector<VkMesh> levelPhysicsMeshes = level->getLevelPhysicsMeshes();
+    VkMesh& mesh = level->getLevelPhysicsMesh();
     LevelSettings levelSettings = level->getLevelSettings();
 
-    for (const auto& mesh : levelPhysicsMeshes) {
-      VkSimpleVertex vert;
+    VkSimpleVertex vert;
 
-      vert.color = glm::vec4(0.6f, 0.7f, 0.7f, 0.5f);
+    vert.color = glm::vec4(0.6f, 0.7f, 0.7f, 0.5f);
 
-      for (int i = 0; i < mesh.indices.size(); i += 3) {
-        // move wireframe overdraw a bit above the planes
-        glm::vec3 point0 = glm::vec3(mesh.vertices.at(mesh.indices.at(i)).position);
-        glm::vec3 point1 = glm::vec3(mesh.vertices.at(mesh.indices.at(i + 1)).position);
-        glm::vec3 point2 = glm::vec3(mesh.vertices.at(mesh.indices.at(i + 2)).position);
+    for (int i = 0; i < mesh.indices.size(); i += 3) {
+      // move wireframe overdraw a bit above the planes
+      glm::vec3 point0 = glm::vec3(mesh.vertices.at(mesh.indices.at(i)).position);
+      glm::vec3 point1 = glm::vec3(mesh.vertices.at(mesh.indices.at(i + 1)).position);
+      glm::vec3 point2 = glm::vec3(mesh.vertices.at(mesh.indices.at(i + 2)).position);
 
-        glm::vec3 normal0 = glm::normalize(point1 - point0);
-        glm::vec3 normal1 = glm::normalize(point2 - point0);
-        glm::vec3 normal = glm::normalize(glm::cross(normal0, normal1));
+      glm::vec3 normal0 = glm::normalize(point1 - point0);
+      glm::vec3 normal1 = glm::normalize(point2 - point0);
+      glm::vec3 normal = glm::normalize(glm::cross(normal0, normal1));
 
-        const float normalOffsetFactor = 0.02f;
-        glm::vec3 offsetNormal = normal * normalOffsetFactor;
+      const float normalOffsetFactor = 0.02f;
+      glm::vec3 offsetNormal = normal * normalOffsetFactor;
 
-        // move vertices in direction of normal
-        vert.position = point0 + offsetNormal;
-        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
-        vert.position = point1 + offsetNormal;
-        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+      // move vertices in direction of normal
+      vert.position = point0 + offsetNormal;
+      mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+      vert.position = point1 + offsetNormal;
+      mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
 
-        vert.position = point1 + offsetNormal;
-        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
-        vert.position = point2 + offsetNormal;
-        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+      vert.position = point1 + offsetNormal;
+      mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+      vert.position = point2 + offsetNormal;
+      mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
 
-        vert.position = point2 + offsetNormal;
-        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
-        vert.position = point0 + offsetNormal;
-        mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
-      }
+      vert.position = point2 + offsetNormal;
+      mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
+      vert.position = point0 + offsetNormal;
+      mLevelPhysicsWireframeMesh->vertices.emplace_back(vert);
     }
   }
 
@@ -2959,7 +2888,6 @@ void VkRenderer::resetLevelData() {
   mRenderData.rdDrawLevelPhysicsWireframe = false;
   mRenderData.rdDrawLevelWireframeMiniMap = false;
   mRenderData.rdDrawLevelCollisionTriangles = false;
-  mRenderData.rdEnableSimpleGravity = false;
 
   mRenderData.rdMaxLevelGroundSlopeAngle = 0.0f;
 
@@ -4206,11 +4134,6 @@ std::optional<bool> VkRenderer::updateLevelAndModels(float deltaTime) {
   mLineIndexCount = 0;
   mLineMesh->vertices.clear();
 
-  // draw physics debug if requested
-  if (mRenderData.rdDrawModelPhysicsBodies) {
-    drawBox3DBodyOutlines();
-  }
-
   // level stuff
   if (mModelInstCamData.micLevels.size() > 1) {
     mRenderData.rdLevelCollisionTimer.start();
@@ -5231,7 +5154,7 @@ std::optional<bool> VkRenderer::renderGraphics() {
     vkCmdBindPipeline(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdGridLinePipeline);
 
     vkCmdBindDescriptorSets(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            mRenderData.rdLinePipelineLayout, 0, 1, &mRenderData.rdLineDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
+      mRenderData.rdLinePipelineLayout, 0, 1, &mRenderData.rdLineDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
     vkCmdSetLineWidth(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 1.0f);
     vkCmdDraw(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 6, 1, 0, 0);
   }
@@ -5249,18 +5172,6 @@ std::optional<bool> VkRenderer::renderGraphics() {
     vkCmdDraw(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), static_cast<uint32_t>(mLineMesh->vertices.size()), 1, 0, 0);
   }
 
-  // draw colliding spheres
-  if (mCollidingSphereCount > 0) {
-    vkCmdBindPipeline(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdSpherePipeline);
-
-    vkCmdBindDescriptorSets(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS,
-      mRenderData.rdSpherePipelineLayout, 0, 1, &mRenderData.rdSphereDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
-
-    vkCmdBindVertexBuffers(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 0, 1, &mRenderData.rdSphereVertexBuffers.at(mRenderData.currentFrame).buffer, &offset);
-    vkCmdSetLineWidth(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 3.0f);
-    vkCmdDraw(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), mSphereVertexCount, mCollidingSphereCount, 0, 0);
-  }
-
   mRenderData.rdCollisionDebugDrawTime += mRenderData.rdCollisionDebugDrawTimer.stop();
 
   if (mRenderData.rdDrawLevelAABB || mRenderData.rdDrawLevelWireframe ||
@@ -5270,7 +5181,7 @@ std::optional<bool> VkRenderer::renderGraphics() {
 
     vkCmdBindDescriptorSets(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS,
       mRenderData.rdLinePipelineLayout, 0, 1, &mRenderData.rdLineDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
-    vkCmdSetLineWidth(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 3.0f);
+    vkCmdSetLineWidth(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 1.0f);
   }
 
   mRenderData.rdLevelCollisionTimer.start();
@@ -5287,6 +5198,34 @@ std::optional<bool> VkRenderer::renderGraphics() {
   if (mRenderData.rdDrawLevelPhysicsWireframe && !mLevelPhysicsWireframeMesh->vertices.empty()) {
     vkCmdBindVertexBuffers(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 0, 1, &mRenderData.rdLevelPhysicsWireframeVertexBuffers.at(mRenderData.currentFrame).buffer, &offset);
     vkCmdDraw(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), static_cast<uint32_t>(mLevelPhysicsWireframeMesh->vertices.size()), 1, 0, 0);
+  }
+
+  if (mRenderData.rdDrawInstancePhysicsWireframe) {
+    mWorldPosOffset = 0;
+    for (const auto& model : mModelInstCamData.micModelList) {
+      size_t numberOfInstances = mModelInstCamData.micAssimpInstancesPerModel[model->getModelFileName()].size();
+      if (numberOfInstances > 0 && model->getTriangleCount() > 0) {
+        if (model->hasAnimations() && !model->getBoneList().empty()) {
+          // TODO: animated models
+        } else {
+          // non-animated models
+          vkCmdBindPipeline(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdWireTrianglePipeline);
+
+          vkCmdBindDescriptorSets(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS,
+            mRenderData.rdWireTrianglePipelineLayout, 0, 1, &mRenderData.rdWireTriangleDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
+
+          mRenderData.rdUploadToUBOTimer.start();
+          mRenderData.rdModelData.pkWorldPosOffset = mWorldPosOffset;
+          vkCmdPushConstants(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), mRenderData.rdWireTrianglePipelineLayout,
+            VK_SHADER_STAGE_VERTEX_BIT, 0, static_cast<uint32_t>(sizeof(VkPushConstants)), &mRenderData.rdModelData);
+          mRenderData.rdUploadToUBOTime += mRenderData.rdUploadToUBOTimer.stop();
+
+          model->drawPhysicsMesh(mRenderData, numberOfInstances);
+
+          mWorldPosOffset += numberOfInstances;
+        }
+      }
+    }
   }
 
   if (mRenderData.rdDrawIKDebugLines && !mIKFootPointMesh->vertices.empty()) {
@@ -5354,7 +5293,7 @@ std::optional<bool> VkRenderer::renderGraphics() {
         mRenderData.rdSpherePipelineLayout, 0, 1, &mRenderData.rdDynLightDebugSphereDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
 
       vkCmdBindVertexBuffers(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 0, 1, &mRenderData.rdDynamicLightDebugVertexBuffers.at(mRenderData.currentFrame).buffer, &offset);
-      vkCmdSetLineWidth(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 3.0f);
+      vkCmdSetLineWidth(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 1.0f);
       vkCmdDraw(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), dynLightVertexCount, mRenderData.rdNumDynamicLights, 0, 1);
     }
 

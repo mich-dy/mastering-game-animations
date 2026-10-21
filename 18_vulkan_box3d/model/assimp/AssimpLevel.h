@@ -47,14 +47,14 @@ class AssimpLevel {
     AABB getAABB();
 
     std::vector<VkMesh>& getLevelMeshes();
-    std::vector<VkMesh> getLevelPhysicsMeshes();
+    VkMesh& getLevelPhysicsMesh();
 
     bool recalculateBox3dMesh(VkRenderData &renderData);
     bool createBox3dMesh(VkRenderData &renderData);
     void destroyBox3dMesh();
 
     b3BodyId getBox3dBodyId();
-    std::unordered_set<int> getBox3dShapeIds();
+    b3ShapeId getBox3dShapeId();
     std::optional<std::array<glm::vec3, 3>> getTriangleDateFromShapeAndIndex(int shapeId, int triangleIndex);
 
     void cleanup(VkRenderData &renderData);
@@ -83,6 +83,8 @@ private:
     LevelSettings mLevelSettings{};
 
     std::vector<VkMesh> mLevelMeshes{};
+    VkMesh mLevelPhysicsMesh{};
+
     std::vector<VkVertexBufferData> mVertexBuffers{};
     std::vector<VkIndexBufferData> mIndexBuffers{};
 
@@ -93,14 +95,11 @@ private:
     AABB mLevelAABB{};
 
     b3BodyId mBox3dBodyId = b3_nullBodyId;
-    std::vector<b3ShapeId> mBox3dShapes{};
-    std::unordered_set<int> mBox3dShapeIdSet{};
+    b3ShapeId mBox3dShapeId = b3_nullShapeId;
 
-    std::unordered_map<int, b3MeshData*> mBox3dShapeToMeshMap{};
-
-    std::vector<b3MeshData*> mBox3dMeshData{};
-    std::vector<std::vector<int32_t>> mBox3dMeshIndices{};
-    std::vector<std::vector<b3Vec3>> mBox3dMeshVertices{};
-    std::vector<std::vector<uint8_t>> mBox3dMaterialIndices{};
-    std::vector<b3SurfaceMaterial> mBox3dTriangleMaterials{};
+    b3MeshData* mBox3dMeshData = nullptr;
+    std::vector<int32_t> mBox3dMeshIndices{};
+    std::vector<b3Vec3> mBox3dMeshVertices{};
+    std::vector<uint8_t> mBox3dMaterialIndices{};
+    b3SurfaceMaterial mBox3dTriangleMaterial = b3DefaultSurfaceMaterial();
 };

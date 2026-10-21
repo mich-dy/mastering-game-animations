@@ -230,7 +230,16 @@ file(GLOB SOURCES
   window/*.cpp
   tools/*.cpp
   vulkan/*.cpp
+  vulkan/buffers/*.cpp
+  vulkan/commands/*.cpp
+  vulkan/helper/*.cpp
+  vulkan/pipelines/*.cpp
+  vulkan/ui/*.cpp
   model/*.cpp
+  model/assimp/*.cpp
+  model/behavior/*.cpp
+  model/models/*.cpp
+  model/settings/*.cpp
   graphnodes/*.cpp
   physics/*.cpp
   ${imgui_SOURCE_DIR}/*.cpp
@@ -245,7 +254,12 @@ file(GLOB SOURCES
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-target_include_directories(${PROJECT_NAME} PUBLIC window tools vulkan model graphnodes physics)
+target_include_directories(${PROJECT_NAME} PUBLIC
+  window tools
+  vulkan vulkan/buffers vulkan/commands vulkan/helper vulkan/pipelines vulkan/ui
+  model model/assimp model/behavior model/models model/settings
+  graphnodes physics
+)
 
 # non-standard include dirs
 target_include_directories(${PROJECT_NAME} PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends
@@ -268,16 +282,24 @@ include_directories(${GLFW3_INCLUDE_DIR} ${GLM_INCLUDE_DIRS} ${ASSIMP_INCLUDE_DI
 
 # compile shaders
 file(GLOB GLSL_SOURCE_FILES
-  shader/*.frag
-  shader/*.vert
-  shader/*.comp
+  shader/composite/*.frag
+  shader/composite/*.vert
+  shader/debug/*.frag
+  shader/debug/*.vert
+  shader/instance/*.comp
+  shader/instance/*.frag
+  shader/instance/*.vert
+  shader/level/*.frag
+  shader/level/*.vert
+  shader/shadowmap/*.frag
+  shader/shadowmap/*.vert
 )
 
 if(Vulkan_GLSLC_EXECUTABLE)
   message("Using glslc to compile shaders")
   foreach(GLSL ${GLSL_SOURCE_FILES})
     get_filename_component(FILE_NAME ${GLSL} NAME)
-    set(SPIRV "${CMAKE_SOURCE_DIR}/shader/${FILE_NAME}.spv")
+    set(SPIRV "${CMAKE_SOURCE_DIR}/spv/${FILE_NAME}.spv")
     add_custom_command(
       OUTPUT ${SPIRV}
       COMMAND ${Vulkan_GLSLC_EXECUTABLE} -o ${SPIRV} ${GLSL}
@@ -288,7 +310,7 @@ elseif (Vulkan_GLSLANG_VALIDATOR_EXECUTABLE)
   message("Using glslangValidator to compile shaders")
   foreach(GLSL ${GLSL_SOURCE_FILES})
     get_filename_component(FILE_NAME ${GLSL} NAME)
-    set(SPIRV "${CMAKE_SOURCE_DIR}/shader/${FILE_NAME}.spv")
+    set(SPIRV "${CMAKE_SOURCE_DIR}/spv/${FILE_NAME}.spv")
     add_custom_command(
       OUTPUT ${SPIRV}
       COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V -o ${SPIRV} ${GLSL}
@@ -305,8 +327,8 @@ add_dependencies(${PROJECT_NAME} Shaders)
 
 add_custom_command(TARGET Shaders POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
-  "$<TARGET_PROPERTY:${PROJECT_NAME},SOURCE_DIR>/shader"
-  "$<TARGET_PROPERTY:${PROJECT_NAME},BINARY_DIR>/$<CONFIGURATION>/shader"
+  "$<TARGET_PROPERTY:${PROJECT_NAME},SOURCE_DIR>/spv"
+  "$<TARGET_PROPERTY:${PROJECT_NAME},BINARY_DIR>/$<CONFIGURATION>/spv"
 )
 
 # copy textures

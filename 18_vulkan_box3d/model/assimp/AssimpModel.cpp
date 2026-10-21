@@ -11,6 +11,9 @@
 #include <Tools.h>
 #include <Logger.h>
 
+#include <SimpleSphereModel.h>
+#include <SimpleCubeModel.h>
+
 bool AssimpModel::loadModel(VkRenderData &renderData, std::string modelFilename, unsigned int extraImportFlags) {
   Logger::log(1, "%s: loading model from file '%s'\n", __FUNCTION__, modelFilename.c_str());
 
@@ -142,7 +145,6 @@ bool AssimpModel::loadModel(VkRenderData &renderData, std::string modelFilename,
   ShaderStorageBuffer::init(renderData, mInverseBoneMatrixOffsetBuffer);
   ShaderStorageBuffer::init(renderData, mEmptyBoneOffsetBuffer);
   ShaderStorageBuffer::init(renderData, mShaderBoneParentBuffer);
-  ShaderStorageBuffer::init(renderData, mBoundingSphereAdjustmentBuffer);
 
   // create a SSBOs containing all vertices for all morph animation of this mesh
   for (const auto& mesh : mModelMeshes) {
@@ -280,10 +282,7 @@ bool AssimpModel::loadModel(VkRenderData &renderData, std::string modelFilename,
     for (const auto& bone: mBoneList) {
       mBoneNameList.emplace_back(bone->getBoneName());
     }
-    mModelSettings.msBoundingSphereAdjustments = std::vector(mBoneList.size(), glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
   }
-
-  ShaderStorageBuffer::uploadSsboData(renderData, mBoundingSphereAdjustmentBuffer, mModelSettings.msBoundingSphereAdjustments);
 
   // create descriptor set for per-model data
   createDescriptorSet(renderData);
@@ -473,24 +472,6 @@ bool AssimpModel::createDescriptorSet(VkRenderData& renderData) {
   }
 
   {
-    // bounding sphere adjustments, per-model
-    VkDescriptorSetAllocateInfo computeBoundingSphereAdjustmentsPerModelDescriptorAllocateInfo{};
-    computeBoundingSphereAdjustmentsPerModelDescriptorAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    computeBoundingSphereAdjustmentsPerModelDescriptorAllocateInfo.descriptorPool = renderData.rdDescriptorPool;
-    computeBoundingSphereAdjustmentsPerModelDescriptorAllocateInfo.descriptorSetCount = 1;
-    computeBoundingSphereAdjustmentsPerModelDescriptorAllocateInfo.pSetLayouts = &renderData.rdAssimpComputeBoundingSpheresPerModelDescriptorLayout;
-
-    VkResult result = vkAllocateDescriptorSets(renderData.rdVkbDevice.device, &computeBoundingSphereAdjustmentsPerModelDescriptorAllocateInfo,
-      &mBoundingSphereAdjustmentPerModelDescriptorSet);
-    if (result != VK_SUCCESS) {
-      Logger::log(1, "%s error: could not allocate Assimp Bounding Sphere Adjustment per-model descriptor set (error: %i)\n", __FUNCTION__, result);
-      return false;
-    }
-
-    updateBoundingSphereDescriptorSet(renderData);
-  }
-
-  {
     // morph anim, per-model
     VkDescriptorSetAllocateInfo morphAnimPerModelDescriptorAllocateInfo{};
     morphAnimPerModelDescriptorAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -522,45 +503,6 @@ bool AssimpModel::createDescriptorSet(VkRenderData& renderData) {
   }
 
   return true;
-}
-
-void AssimpModel::updateBoundingSphereDescriptorSet(VkRenderData &renderData) {
-  VkDescriptorBufferInfo parentNodeInfo{};
-  parentNodeInfo.buffer = mShaderBoneParentBuffer.buffer;
-  parentNodeInfo.offset = 0;
-  parentNodeInfo.range = VK_WHOLE_SIZE;
-
-  VkDescriptorBufferInfo boundingSphereAdjustmentInfo{};
-  boundingSphereAdjustmentInfo.buffer = mBoundingSphereAdjustmentBuffer.buffer;
-  boundingSphereAdjustmentInfo.offset = 0;
-  boundingSphereAdjustmentInfo.range = VK_WHOLE_SIZE;
-
-  VkWriteDescriptorSet parentNodeWriteDescriptorSet{};
-  parentNodeWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  parentNodeWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  parentNodeWriteDescriptorSet.dstSet = mBoundingSphereAdjustmentPerModelDescriptorSet;
-  parentNodeWriteDescriptorSet.dstBinding = 0;
-  parentNodeWriteDescriptorSet.descriptorCount = 1;
-  parentNodeWriteDescriptorSet.pBufferInfo = &parentNodeInfo;
-
-  VkWriteDescriptorSet boundingSphereAdjustmentWriteDescriptorSet{};
-  boundingSphereAdjustmentWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  boundingSphereAdjustmentWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  boundingSphereAdjustmentWriteDescriptorSet.dstSet = mBoundingSphereAdjustmentPerModelDescriptorSet;
-  boundingSphereAdjustmentWriteDescriptorSet.dstBinding = 1;
-  boundingSphereAdjustmentWriteDescriptorSet.descriptorCount = 1;
-  boundingSphereAdjustmentWriteDescriptorSet.pBufferInfo = &boundingSphereAdjustmentInfo;
-
-  std::vector<VkWriteDescriptorSet> boundingSpheresWriteDescriptorSets =
-  { parentNodeWriteDescriptorSet, boundingSphereAdjustmentWriteDescriptorSet };
-
-  vkUpdateDescriptorSets(renderData.rdVkbDevice.device, static_cast<uint32_t>(boundingSpheresWriteDescriptorSets.size()),
-    boundingSpheresWriteDescriptorSets.data(), 0, nullptr);
-}
-
-void AssimpModel::updateBoundingSphereAdjustments(VkRenderData& renderData) {
-  ShaderStorageBuffer::uploadSsboData(renderData, mBoundingSphereAdjustmentBuffer, mModelSettings.msBoundingSphereAdjustments);
-  updateBoundingSphereDescriptorSet(renderData);
 }
 
 void AssimpModel::draw(VkRenderData &renderData, bool selectionModeActive) {
@@ -699,6 +641,12 @@ void AssimpModel::drawInstanced(VkRenderData &renderData, int bufferIndex,
   vkCmdDrawIndexed(renderData.rdCommandBuffers[renderData.currentFrame], static_cast<uint32_t>(mesh.indices.size()), instanceCount, 0, 0, 0);
 }
 
+void AssimpModel::drawPhysicsMesh(VkRenderData& renderData, uint32_t instanceCount) {
+  VkDeviceSize offset = 0;
+  vkCmdBindVertexBuffers(renderData.rdCommandBuffers[renderData.currentFrame], 0, 1, &mPhysicsMeshVertexBuffer.buffer, &offset);
+  vkCmdDraw(renderData.rdCommandBuffers[renderData.currentFrame], static_cast<uint32_t>(mPhysicsMesh.vertices.size()), instanceCount, 0, 0);
+}
+
 unsigned int AssimpModel::getTriangleCount() {
   return mTriangleCount;
 }
@@ -707,7 +655,6 @@ void AssimpModel::cleanup(VkRenderData &renderData) {
   vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, 1, &mTransformPerModelDescriptorSet);
   vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, 1, &mMatrixMultPerModelDescriptorSet);
   vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, 1, &mMatrixMultPerModelEmptyOffsetDescriptorSet);
-  vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, 1, &mBoundingSphereAdjustmentPerModelDescriptorSet);
   vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, 1, &mMorphAnimPerModelDescriptorSet);
 
   for (auto buffer : mVertexBuffers) {
@@ -721,7 +668,6 @@ void AssimpModel::cleanup(VkRenderData &renderData) {
   ShaderStorageBuffer::cleanup(renderData, mShaderBoneParentBuffer);
   ShaderStorageBuffer::cleanup(renderData, mAnimLookupBuffer);
   ShaderStorageBuffer::cleanup(renderData, mEmptyBoneOffsetBuffer);
-  ShaderStorageBuffer::cleanup(renderData, mBoundingSphereAdjustmentBuffer);
   ShaderStorageBuffer::cleanup(renderData, mAnimMeshVerticesBuffer);
   ShaderStorageBuffer::cleanup(renderData, mInverseBoneMatrixOffsetBuffer);
 
@@ -731,6 +677,9 @@ void AssimpModel::cleanup(VkRenderData &renderData) {
 
   Texture::cleanup(renderData, mPlaceholderTexture);
   Texture::cleanup(renderData, mWhiteTexture);
+
+  mPhysicsMesh.vertices.clear();
+  VertexBuffer::cleanup(renderData, mPhysicsMeshVertexBuffer);
 }
 
 std::string AssimpModel::getModelFileName() {
@@ -787,10 +736,6 @@ VkDescriptorSet& AssimpModel::getMatrixMultDescriptorSet() {
 
 VkDescriptorSet& AssimpModel::getMatrixMultEmptyOffsetDescriptorSet() {
   return mMatrixMultPerModelEmptyOffsetDescriptorSet;
-}
-
-VkDescriptorSet& AssimpModel::getBoundingSphereDescriptorSet() {
-  return mBoundingSphereAdjustmentPerModelDescriptorSet;
 }
 
 std::vector<int32_t> AssimpModel::getBoneParentIndexList() {
@@ -1016,3 +961,57 @@ void AssimpModel::setPhysicsHullType(physicsHullType hulLType) {
   mModelSettings.msPhysicsHullType = hulLType;
 }
 
+void AssimpModel::calculatePhysicsMesh(VkRenderData &renderData) {
+  mPhysicsMesh.vertices.clear();
+  if (mPhysicsMeshVertexBuffer.bufferSize > 0) {
+    VertexBuffer::cleanup(renderData, mPhysicsMeshVertexBuffer);
+  }
+
+  switch (mModelSettings.msPhysicsHullType) {
+    case physicsHullType::box:
+    case physicsHullType::cube:
+    {
+      SimpleCubeModel cube{};
+      mPhysicsMesh = cube.getVertexData();
+    }
+      break;
+    case physicsHullType::sphere:
+    {
+      SimpleSphereModel sphere = SimpleSphereModel(1.0, 15, 20, glm::vec3(1.0f, 1.0f, 1.0f));
+      mPhysicsMesh = sphere.getVertexData();
+    }
+      break;
+    default:
+      Logger::log(1, "%s error: invalid hull type \n", __FUNCTION__);
+      break;
+  }
+
+  std::for_each(mPhysicsMesh.vertices.begin(), mPhysicsMesh.vertices.end(), [=, this](auto &n) {
+    // update TRS of hull, make hull a little bit larger to keep it visible
+    n.position *= mModelSettings.msPhysicsHullSize * mModelSettings.msPhysicsHullScale * 1.01f;
+    n.position = glm::quat(glm::radians(mModelSettings.msPhysicsHullRotation))
+      * n.position;
+    n.position += mModelSettings.msPhysicsHullOffset;
+
+    switch (mModelSettings.msPhysicsBodyType) {
+      case physicsBodyType::staticBody:
+        n.color = glm::vec3(0.0f, 1.0f, 0.0f);
+        break;
+      case physicsBodyType::kinematicBody:
+        n.color = glm::vec3(1.0f, 1.0f, 0.0f);
+        break;
+      case physicsBodyType::dynamicBody:
+        n.color = glm::vec3(1.0f, 0.0f, 0.0f);
+        break;
+      default:
+        Logger::log(1, "%s error: unknown physics body type\n", __FUNCTION__);
+        break;
+    }
+  });
+
+  VertexBuffer::init(renderData, mPhysicsMeshVertexBuffer, mPhysicsMesh.vertices.size() * sizeof(VkSimpleVertex));
+  VertexBuffer::uploadData(renderData, mPhysicsMeshVertexBuffer, mPhysicsMesh.vertices);
+
+  Logger::log(2, "%s: physics mesh debug contains %i vertices\n", __FUNCTION__,
+    mPhysicsMesh.vertices.size());
+}

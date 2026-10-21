@@ -101,8 +101,7 @@ enum class animationState : uint8_t {
 
 enum class collisionChecks : uint8_t {
   none = 0,
-  boundingBox,
-  boundingSpheres
+  boundingBox
 };
 
 enum class collisionDebugDraw : uint8_t {

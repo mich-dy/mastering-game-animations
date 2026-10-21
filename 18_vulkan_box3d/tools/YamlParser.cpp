@@ -241,15 +241,6 @@ YAML::Emitter& operator<<(YAML::Emitter& out, const ModelSettings& settings) {
     }
     out << YAML::EndSeq;
   }
-  if (!settings.msBoundingSphereAdjustments.empty()) {
-    out << YAML::Key << "bounding-sphere-adjustments";
-    out << YAML::Value;
-    out << YAML::BeginSeq;
-    for (auto& setting : settings.msBoundingSphereAdjustments) {
-      out << YAML::Key << setting;
-    }
-    out << YAML::EndSeq;
-  }
   out << YAML::Key << "forward-speed-factor";
   out << YAML::Value << settings.msForwardSpeedFactor;
   if (!settings.msHeadMoveClipMappings.empty() &&
@@ -1636,8 +1627,6 @@ bool YamlParser::createConfigFile(VkRenderData &renderData, ModelInstanceCamData
   mYamlEmit << YAML::Value << renderData.rdInteractionMaxRange;
   mYamlEmit << YAML::Key << "interaction-fov";
   mYamlEmit << YAML::Value << renderData.rdInteractionFOV;
-  mYamlEmit << YAML::Key << "gravity-enabled";
-  mYamlEmit << YAML::Value << renderData.rdEnableSimpleGravity;
   mYamlEmit << YAML::Key << "level-collision-ground-slope";
   mYamlEmit << YAML::Value << renderData.rdMaxLevelGroundSlopeAngle;
   mYamlEmit << YAML::Key << "level-collision-max-stairstep-height";

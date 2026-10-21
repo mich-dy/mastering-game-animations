@@ -649,7 +649,6 @@ namespace YAML {
         clips[state.first] = state.second;
       }
       node["forward-speed-factor"] = rhs.msForwardSpeedFactor;
-      node["bounding-sphere-adjustment"] = rhs.msBoundingSphereAdjustments;
       clips = node["head-movement-mappings"];
       for (const auto& state : rhs.msHeadMoveClipMappings) {
         clips[state.first] = state.second;
@@ -699,17 +698,6 @@ namespace YAML {
         } catch (...) {
           Logger::log(1, "%s warning: could not parse allowed clip order of model '%s', using empty defaults'\n", __FUNCTION__, rhs.msModelFilename.c_str());
           rhs.msAllowedStateOrder = defaultSettings.msAllowedStateOrder;
-        }
-      }
-      if (Node clipNode = node["bounding-sphere-adjustments"]) {
-        try {
-          for (size_t i = 0; i < clipNode.size(); ++i) {
-            glm::vec4 entry = clipNode[i].as<glm::vec4>();
-            rhs.msBoundingSphereAdjustments.emplace_back(entry);
-          }
-        } catch (...) {
-          Logger::log(1, "%s warning: could not parse bounding sphere adjustment of model '%s', using empty defaults'\n", __FUNCTION__, rhs.msModelFilename.c_str());
-          rhs.msBoundingSphereAdjustments = defaultSettings.msBoundingSphereAdjustments;
         }
       }
       if (Node clipNode = node["forward-speed-factor"]) {

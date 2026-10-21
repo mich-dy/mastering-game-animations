@@ -151,75 +151,64 @@ bool AssimpLevel::createBox3dMesh(VkRenderData& renderData) {
   Logger::log(1, "%s: created level body index %i\n", __FUNCTION__,
     mBox3dBodyId.index1);
 
-  mBox3dMeshIndices.resize(mLevelMeshes.size());
-  mBox3dMeshVertices.resize(mLevelMeshes.size());
-  mBox3dMaterialIndices.resize(mLevelMeshes.size());
-  mBox3dMeshData.resize(mLevelMeshes.size(), nullptr);
-
-  mBox3dShapes.resize(mLevelMeshes.size(), b3_nullShapeId);
-
-  mBox3dTriangleMaterials.resize(1, b3DefaultSurfaceMaterial());
-
-  int meshNum = 0;
+  int indexOffset = 0;
   for (const auto& mesh : mLevelMeshes) {
-    std::transform(mesh.vertices.begin(), mesh.vertices.end(), std::back_inserter(mBox3dMeshVertices.at(meshNum)),
+    std::transform(mesh.vertices.begin(), mesh.vertices.end(), std::back_inserter(mBox3dMeshVertices),
       // position.w is used to store UV.x coordinate, force to 1.0f
       [this](const VkVertex &a) { return Tools::glmToBox3d(glm::vec3(mLevelRootMatrix * glm::vec4(glm::vec3(a.position), 1.0f)));
       }
     );
 
-    std::transform(mesh.indices.begin(), mesh.indices.end(), std::back_inserter(mBox3dMeshIndices.at(meshNum)),
-      [](const uint32_t &a) { return a; });
+    std::transform(mesh.indices.begin(), mesh.indices.end(), std::back_inserter(mBox3dMeshIndices),
+      [&](const uint32_t &a) { return a + indexOffset; });
 
-    Logger::log(1, "%s: current length is %i vertices and %i indices \n", __FUNCTION__,
-      mBox3dMeshVertices.at(meshNum).size(), mBox3dMeshIndices.at(meshNum).size());
-
-    // create mesh
-    mBox3dMaterialIndices.at(meshNum).resize(mBox3dMeshIndices.at(meshNum).size() / 3.0f, 0);
-
-    b3MeshDef meshDef{};
-    meshDef.vertices = mBox3dMeshVertices.at(meshNum).data();
-    meshDef.vertexCount = static_cast<int>(mBox3dMeshVertices.at(meshNum).size());
-    meshDef.indices = mBox3dMeshIndices.at(meshNum).data();
-    meshDef.triangleCount = static_cast<int>(mBox3dMeshIndices.at(meshNum).size() / 3.0f);
-    meshDef.materialIndices = mBox3dMaterialIndices.at(meshNum).data();
-
-    // optional settings
-    /*
-    meshDef.useMedianSplit = true;
-    meshDef.identifyEdges = true;
-    meshDef.weldVertices = true;
-    meshDef.weldTolerance = 0.001f * 1.5f;
-    */
-
-    mBox3dMeshData.at(meshNum) = b3CreateMesh(&meshDef, nullptr, 0);
-    if (!mBox3dMeshData.at(meshNum)) {
-      Logger::log(1, "%s error: mesh data is empty\n", __FUNCTION__);
-      return false;
-    }
-
-    Logger::log(1, "%s: mesh is %i bytes long, has %i triangles\n", __FUNCTION__,
-      mBox3dMeshData.at(meshNum)->byteCount, mBox3dMeshData.at(meshNum)->triangleCount);
-
-    b3ShapeDef shapeDef = b3DefaultShapeDef();
-    shapeDef.density = 1.0f;
-    shapeDef.materialCount = static_cast<int>(mBox3dTriangleMaterials.size());
-    shapeDef.materials = mBox3dTriangleMaterials.data();
-    shapeDef.enableContactEvents = true;
-    //shapeDef.userData = static_cast<void *>(&mLevelMeshes.at(meshNum));
-
-    // scaling is done when transforming the the level vertices to b3Vec3
-    b3Vec3 scale = b3Vec3{1.0f, 1.0f, 1.0f}; //Tools::glmToBox3d(glm::vec3(mLevelSettings.lsScale));
-
-    mBox3dShapes.at(meshNum) = b3CreateMeshShape(mBox3dBodyId,
-      &shapeDef, mBox3dMeshData.at(meshNum), scale);
-    mBox3dShapeIdSet.insert(mBox3dShapes.at(meshNum).index1);
-
-    mBox3dShapeToMeshMap.emplace(mBox3dShapes.at(meshNum).index1, mBox3dMeshData.at(meshNum));
-
-    Logger::log(1, "%s: added shape %i\n", __FUNCTION__, mBox3dShapes.at(meshNum).index1);
-    ++meshNum;
+    indexOffset += mesh.vertices.size();
   }
+
+  Logger::log(1, "%s: current mesh length is %i vertices and %i indices \n", __FUNCTION__,
+    mBox3dMeshVertices.size(), mBox3dMeshIndices.size());
+
+  // create mesh
+  mBox3dMaterialIndices.resize(mBox3dMeshIndices.size() / 3.0f, 0);
+
+  b3MeshDef meshDef{};
+  meshDef.vertices = mBox3dMeshVertices.data();
+  meshDef.vertexCount = static_cast<int>(mBox3dMeshVertices.size());
+  meshDef.indices = mBox3dMeshIndices.data();
+  meshDef.triangleCount = static_cast<int>(mBox3dMeshIndices.size() / 3.0f);
+  meshDef.materialIndices = mBox3dMaterialIndices.data();
+
+  // optional settings
+  /*
+  meshDef.useMedianSplit = true;
+  meshDef.identifyEdges = true;
+  meshDef.weldVertices = true;
+  meshDef.weldTolerance = 0.001f * 1.5f;
+  */
+
+  mBox3dMeshData = b3CreateMesh(&meshDef, nullptr, 0);
+  if (!mBox3dMeshData) {
+    Logger::log(1, "%s error: mesh data is empty\n", __FUNCTION__);
+    return false;
+  }
+
+  Logger::log(1, "%s: mesh is %i bytes long, has %i triangles\n", __FUNCTION__,
+    mBox3dMeshData->byteCount, mBox3dMeshData->triangleCount);
+
+  b3ShapeDef shapeDef = b3DefaultShapeDef();
+  shapeDef.density = 1.0f;
+  shapeDef.materialCount = 1;
+  shapeDef.materials = &mBox3dTriangleMaterial;
+  shapeDef.enableContactEvents = true;
+  //shapeDef.userData = static_cast<void *>(&mLevelMeshes.at(meshNum));
+
+  // scaling is done when transforming the the level vertices to b3Vec3
+  b3Vec3 scale = b3Vec3{1.0f, 1.0f, 1.0f}; //Tools::glmToBox3d(glm::vec3(mLevelSettings.lsScale));
+
+  mBox3dShapeId = b3CreateMeshShape(mBox3dBodyId,
+    &shapeDef, mBox3dMeshData, scale);
+
+  Logger::log(1, "%s: added shape %i\n", __FUNCTION__, mBox3dShapeId.index1);
 
   int numShapes = b3Body_GetShapeCount(mBox3dBodyId);
   Logger::log(1, "%s: level '%s' has %i shapes attached\n", __FUNCTION__,
@@ -229,24 +218,17 @@ bool AssimpLevel::createBox3dMesh(VkRenderData& renderData) {
 }
 
 void AssimpLevel::destroyBox3dMesh() {
-  for (int i = 0; i < mBox3dShapes.size(); ++i) {
-    if (b3Shape_IsValid(mBox3dShapes.at(i))) {
-    Logger::log(1, "%s: removing shape index %i\n", __FUNCTION__,
-      mBox3dShapes.at(i).index1);
-      b3DestroyShape(mBox3dShapes.at(i), true);
-      mBox3dShapes.at(i) = b3_nullShapeId;
-    }
-  }
-  mBox3dShapes.clear();
-
-  for (int i = 0; i < mBox3dMeshData.size(); ++i) {
-    if (mBox3dMeshData.at(i)) {
-      b3DestroyMesh(mBox3dMeshData.at(i));
-      mBox3dMeshData.at(i) = nullptr;
-    }
+  if (b3Shape_IsValid(mBox3dShapeId)) {
+  Logger::log(1, "%s: removing shape index %i\n", __FUNCTION__,
+    mBox3dShapeId.index1);
+    b3DestroyShape(mBox3dShapeId, true);
+    mBox3dShapeId = b3_nullShapeId;
   }
 
-  mBox3dMeshData.clear();
+  if (mBox3dMeshData) {
+    b3DestroyMesh(mBox3dMeshData);
+    mBox3dMeshData = nullptr;
+  }
 
   if (b3Body_IsValid(mBox3dBodyId)) {
     Logger::log(1, "%s: removing level body index %i\n", __FUNCTION__,
@@ -255,25 +237,10 @@ void AssimpLevel::destroyBox3dMesh() {
     mBox3dBodyId = b3_nullBodyId;
   }
 
-  for (auto& indices : mBox3dMeshIndices) {
-    indices.clear();
-  }
   mBox3dMeshIndices.clear();
-
-  for (auto& vertices : mBox3dMeshVertices) {
-    vertices.clear();
-  }
   mBox3dMeshVertices.clear();
-
-  for (auto& materials : mBox3dMaterialIndices) {
-    materials.clear();
-  }
   mBox3dMaterialIndices.clear();
-
-  mBox3dTriangleMaterials.clear();
-
-  mBox3dShapeIdSet.clear();
-  mBox3dShapeToMeshMap.clear();
+  mBox3dTriangleMaterial = b3DefaultSurfaceMaterial();
 
   Logger::log(1, "%s: Box3D data for level '%s' removed\n", __FUNCTION__,
     mLevelSettings.lsLevelFilename.c_str());
@@ -295,21 +262,17 @@ b3BodyId AssimpLevel::getBox3dBodyId() {
   return mBox3dBodyId;
 }
 
-std::unordered_set<int> AssimpLevel::getBox3dShapeIds() {
-  return mBox3dShapeIdSet;
+b3ShapeId AssimpLevel::getBox3dShapeId() {
+  return mBox3dShapeId;
 }
 
 std::optional<std::array<glm::vec3, 3>> AssimpLevel::getTriangleDateFromShapeAndIndex(int shapeId, int triangleIndex) {
-  if (!mBox3dShapeToMeshMap.contains(shapeId)) {
-      return std::nullopt;
-  }
 
-  b3MeshData* mesh = mBox3dShapeToMeshMap.at(shapeId);
-  unsigned char* meshAddress = reinterpret_cast<unsigned char*>(mesh);
+  unsigned char* meshAddress = reinterpret_cast<unsigned char*>(mBox3dMeshData);
 
   // use triangle offset to get indices
-  int triangleOffset = mesh->triangleOffset;
-  int triangleCount = mesh->triangleCount;
+  int triangleOffset = mBox3dMeshData->triangleOffset;
+  int triangleCount = mBox3dMeshData->triangleCount;
 
   b3MeshTriangle* triangles = reinterpret_cast<b3MeshTriangle*>(meshAddress + triangleOffset);
 
@@ -323,8 +286,8 @@ std::optional<std::array<glm::vec3, 3>> AssimpLevel::getTriangleDateFromShapeAnd
   int32_t pt3Index = (triangles + triangleIndex)->index3;
 
   // use indices to get vertex data
-  int vertexOffset = mesh->vertexOffset;
-  int vertexCount = mesh->vertexCount;
+  int vertexOffset = mBox3dMeshData->vertexOffset;
+  int vertexCount = mBox3dMeshData->vertexCount;
 
   b3Vec3* vertices = reinterpret_cast<b3Vec3*>(meshAddress + vertexOffset);
 
@@ -505,30 +468,26 @@ std::vector<VkMesh>& AssimpLevel::getLevelMeshes() {
   return mLevelMeshes;
 }
 
-std::vector<VkMesh> AssimpLevel::getLevelPhysicsMeshes() {
-  std::vector<VkMesh> physicsMeshes{};
-  physicsMeshes.resize(mBox3dMeshVertices.size());
+VkMesh& AssimpLevel::getLevelPhysicsMesh() {
+  mLevelPhysicsMesh.vertices.clear();
+  mLevelPhysicsMesh.indices.clear();
 
-  for (int i = 0; i < mBox3dMeshVertices.size(); ++i) {
-    std::transform(mBox3dMeshVertices.at(i).begin(), mBox3dMeshVertices.at(i).end(),
-    std::back_inserter(physicsMeshes.at(i).vertices),
-      [](const b3Vec3 &a) {
-        VkVertex v;
-        v.color = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
-        v.position = glm::vec4(Tools::box3dToGlm(a), 1.0f);
-        return v;
-      }
-    );
-  }
+  std::transform(mBox3dMeshVertices.begin(), mBox3dMeshVertices.end(),
+  std::back_inserter(mLevelPhysicsMesh.vertices),
+    [](const b3Vec3 &a) {
+      VkVertex v;
+      v.color = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
+      v.position = glm::vec4(Tools::box3dToGlm(a), 1.0f);
+      return v;
+    }
+  );
 
-  for (int i = 0; i < mBox3dMeshIndices.size(); ++i) {
-    std::transform(mBox3dMeshIndices.at(i).begin(), mBox3dMeshIndices.at(i).end(),
-    std::back_inserter(physicsMeshes.at(i).indices),
-      [](const uint32_t &a) {
-        return a;
-      }
-    );
-  }
+  std::transform(mBox3dMeshIndices.begin(), mBox3dMeshIndices.end(),
+  std::back_inserter(mLevelPhysicsMesh.indices),
+    [](const uint32_t &a) {
+      return a;
+    }
+  );
 
-  return physicsMeshes;
+  return mLevelPhysicsMesh;
 }

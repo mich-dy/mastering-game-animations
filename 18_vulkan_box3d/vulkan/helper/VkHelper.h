@@ -66,9 +66,6 @@ class VkHelper {
     static void runComputeShaders(VkRenderData& renderData, std::shared_ptr<AssimpModel> model,
        int numInstances, uint32_t modelOffset, uint32_t instanceOffset, bool useEmtpyBoneOffsets = false);
 
-    static void runBoundingSphereComputeShaders(VkRenderData& renderData, std::shared_ptr<AssimpModel> model, int numInstances,
-      uint32_t modelOffset);
-
     static bool runIKComputeShaders(VkRenderData& renderData, std::shared_ptr<AssimpModel> model, int numInstances, uint32_t modelOffset);
 
     static void cleanup(VkRenderData& renderData);
