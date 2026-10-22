@@ -8,6 +8,7 @@ layout (location = 4) in vec4 aBoneWeight; // ignored
 layout (location = 0) out vec3 color;
 layout (location = 1) out vec2 texCoord;
 layout (location = 2) out float selectInfo;
+layout (location = 3) out flat uint outInstance;
 
 layout (push_constant) uniform Constants {
   uint modelStride;
@@ -35,6 +36,8 @@ void main() {
 
   color = aColor.rgb * selected[gl_InstanceIndex + worldPosOffset].x;
   texCoord = vec2(aPos.w, aNormal.w);
+
+  outInstance = gl_InstanceIndex;
 
   /* we need vertex id only (z -> y) */
   selectInfo = selected[gl_InstanceIndex + worldPosOffset].y;

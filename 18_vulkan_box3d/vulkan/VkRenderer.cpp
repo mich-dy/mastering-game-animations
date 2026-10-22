@@ -3666,14 +3666,14 @@ std::optional<bool> VkRenderer::updateLevelAndModels(float deltaTime) {
 
   // dynamic lights are handled like normal instances
   // we also use light at position 0 as "no light selected"
-  for (size_t i = 1; i < mModelInstCamData.micDynLights.size(); ++i) {
-    DynamicLightSettings lightSettings = mModelInstCamData.micDynLights.at(i)->getDynLightSettings();
-    mWorldPosMatrices.at(instanceToStore + i - 1) = mModelInstCamData.micDynLights.at(i)  ->getWorldTransformMatrix();
+  for (size_t i = 0; i < mModelInstCamData.micDynLights.size(); ++i) {
+    DynamicLightSettings lightSettings = mModelInstCamData.micDynLights.at(mRenderData.rdLightIndices.at(i))->getDynLightSettings();
+    mWorldPosMatrices.at(instanceToStore + i) = mModelInstCamData.micDynLights.at(mRenderData.rdLightIndices.at(i))->getWorldTransformMatrix();
 
     if (mMousePick) {
-      mSelectedInstance.at(instanceToStore + i - 1).y = static_cast<float>(lightSettings.dlsIndexPosition) + LIGHT_OBJECT_OFFSET;
+      mSelectedInstance.at(instanceToStore + i).y = static_cast<float>(lightSettings.dlsIndexPosition) + LIGHT_OBJECT_OFFSET;
     }
-    mSelectedInstance.at(instanceToStore + i - 1).x = 1.0f;
+    mSelectedInstance.at(instanceToStore + i).x = 1.0f;
   }
 
   // upload vertex data for instance paths and neighbor triangles
@@ -4939,7 +4939,23 @@ std::optional<bool> VkRenderer::renderGraphics() {
       0, nullptr, 0, nullptr,
       1, &dynLightShadowDataImageMemoryBarrierThree // pImageMemoryBarriers
     );
-  }
+  } else {
+    // clear image to avoid artifacts when swichting off dynamic lights + shadows
+    VkImageSubresourceRange subresourceRange{};
+    subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    subresourceRange.baseMipLevel = 0;
+    subresourceRange.levelCount = 1;
+    subresourceRange.baseArrayLayer = 0;
+    subresourceRange.layerCount = 1;
+
+    VkClearColorValue clearValue = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+
+    VkHelper::transitionImageLayout(mRenderData, mRenderData.rdLightSpheresBufferData.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    vkCmdClearColorImage(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), mRenderData.rdLightSpheresBufferData.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &subresourceRange);
+
+    VkHelper::transitionImageLayout(mRenderData, mRenderData.rdLightSpheresBufferData.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+ }
 
   VkHelper::transitionImageLayout(mRenderData, mRenderData.rdLightSpheresBufferData.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
@@ -5219,6 +5235,7 @@ std::optional<bool> VkRenderer::renderGraphics() {
           vkCmdPushConstants(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), mRenderData.rdWireTrianglePipelineLayout,
             VK_SHADER_STAGE_VERTEX_BIT, 0, static_cast<uint32_t>(sizeof(VkPushConstants)), &mRenderData.rdModelData);
           mRenderData.rdUploadToUBOTime += mRenderData.rdUploadToUBOTimer.stop();
+          vkCmdSetLineWidth(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), 1.0f);
 
           model->drawPhysicsMesh(mRenderData, numberOfInstances);
 
@@ -5257,33 +5274,35 @@ std::optional<bool> VkRenderer::renderGraphics() {
   mRenderData.rdLevelGroundNeighborUpdateTime += mRenderData.rdLevelGroundNeighborUpdateTimer.stop();
 
   // draw in forward rendering after composite pass to avoid model light problems
-  if (mRenderData.rdApplicationMode == appMode::edit) {
+  // light bulb models
+  if (mRenderData.rdApplicationMode == appMode::edit && mRenderData.rdNumDynamicLights > 0) {
     if (mMousePick) {
       vkCmdBindPipeline(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame),
         VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdAssimpPostCompositeSelectionPipeline);
 
       vkCmdBindDescriptorSets(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS,
-        mRenderData.rdAssimpSelectionPipelineLayout, 1, 1, &mRenderData.rdAssimpSelectionDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
+        mRenderData.rdPostCompositeLightObjectSelectionPipelineLayout, 1, 1, &mRenderData.rdPostCompositeLightObjectDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
     } else {
       vkCmdBindPipeline(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame),
         VK_PIPELINE_BIND_POINT_GRAPHICS, mRenderData.rdAssimpPostCompositePipeline);
 
       vkCmdBindDescriptorSets(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), VK_PIPELINE_BIND_POINT_GRAPHICS,
-        mRenderData.rdAssimpPipelineLayout, 1, 1, &mRenderData.rdAssimpDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
+        mRenderData.rdPostCompositeLightObjectPipelineLayout, 1, 1, &mRenderData.rdPostCompositeLightObjectDescriptorSets.at(mRenderData.currentFrame), 0, nullptr);
     }
 
     mRenderData.rdUploadToUBOTimer.start();
     mRenderData.rdModelData.pkWorldPosOffset = mWorldPosOffset;
     if (mMousePick) {
-      vkCmdPushConstants(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), mRenderData.rdAssimpSelectionPipelineLayout,
+      vkCmdPushConstants(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), mRenderData.rdPostCompositeLightObjectPipelineLayout,
         VK_SHADER_STAGE_VERTEX_BIT, 0, static_cast<uint32_t>(sizeof(VkPushConstants)), &mRenderData.rdModelData);
     } else {
-      vkCmdPushConstants(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), mRenderData.rdAssimpPipelineLayout,
+      vkCmdPushConstants(mRenderData.rdCommandBuffers.at(mRenderData.currentFrame), mRenderData.rdPostCompositeLightObjectPipelineLayout,
         VK_SHADER_STAGE_VERTEX_BIT, 0, static_cast<uint32_t>(sizeof(VkPushConstants)), &mRenderData.rdModelData);
     }
     mRenderData.rdUploadToUBOTime += mRenderData.rdUploadToUBOTimer.stop();
 
-    mLightModel->drawInstanced(mRenderData, mRenderData.rdNumDynamicLights, mMousePick);
+    mLightModel->drawInstancedWithOffset(mRenderData, mRenderData.rdNumDynamicLightsWithShadow, mRenderData.rdNumDynamicLightsWithShadow + 1, mMousePick);
+    mLightModel->drawInstancedWithOffset(mRenderData, mRenderData.rdNumDynamicLights, 1, mMousePick);
 
     if (mRenderData.rdEnableLightDebug) {
       uint32_t dynLightVertexCount = static_cast<uint32_t>(mDynLightModel.getVertexData().vertices.size());

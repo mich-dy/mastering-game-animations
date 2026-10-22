@@ -561,6 +561,12 @@ void AssimpModel::drawInstanced(VkRenderData &renderData, uint32_t instanceCount
   }
 }
 
+void AssimpModel::drawInstancedWithOffset(VkRenderData& renderData, uint32_t instanceCount, uint32_t firstInstance, bool selectionModeActive) {
+  for (unsigned int i = 0; i < mModelMeshes.size(); ++i) {
+    drawInstanced(renderData, i, instanceCount, selectionModeActive, false, firstInstance);
+  }
+}
+
 void AssimpModel::drawInstancedNoMorphAnims(VkRenderData &renderData, uint32_t instanceCount, bool selectionModeActive) {
   for (unsigned int i = 0; i < mModelMeshes.size(); ++i) {
     // skip meshes with morph animations
@@ -582,7 +588,7 @@ void AssimpModel::drawInstancedMorphAnims(VkRenderData &renderData, uint32_t ins
 }
 
 void AssimpModel::drawInstanced(VkRenderData &renderData, int bufferIndex,
-    uint32_t instanceCount, bool selectionModeActive, bool drawMorphMeshes) {
+    uint32_t instanceCount, bool selectionModeActive, bool drawMorphMeshes, uint firstInstance) {
   VkMesh& mesh = mModelMeshes.at(bufferIndex);
   // find diffuse texture by name
   VkTextureData diffuseTex{};
@@ -638,7 +644,7 @@ void AssimpModel::drawInstanced(VkRenderData &renderData, int bufferIndex,
   VkDeviceSize offset = 0;
   vkCmdBindVertexBuffers(renderData.rdCommandBuffers[renderData.currentFrame], 0, 1, &mVertexBuffers.at(bufferIndex).buffer, &offset);
   vkCmdBindIndexBuffer(renderData.rdCommandBuffers[renderData.currentFrame], mIndexBuffers.at(bufferIndex).buffer, 0, VK_INDEX_TYPE_UINT32);
-  vkCmdDrawIndexed(renderData.rdCommandBuffers[renderData.currentFrame], static_cast<uint32_t>(mesh.indices.size()), instanceCount, 0, 0, 0);
+  vkCmdDrawIndexed(renderData.rdCommandBuffers[renderData.currentFrame], static_cast<uint32_t>(mesh.indices.size()), instanceCount, 0, 0, firstInstance);
 }
 
 void AssimpModel::drawPhysicsMesh(VkRenderData& renderData, uint32_t instanceCount) {

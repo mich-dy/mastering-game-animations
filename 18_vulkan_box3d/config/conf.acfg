@@ -3,7 +3,7 @@ version: 13.0
 
 settings:
   near-clip-plane: 0.1
-  far-clip-plane: 100
+  far-clip-plane: 500
   orth-nearfar-clip-plane: 40
   selected-model: 1
   selected-instance: 0
@@ -54,7 +54,7 @@ levels:
 
 cameras:
   - camera-name: FreeCam
-    position: [10.704221, 17.50466, 15.403228]
+    position: [10.733861, 17.595587, 15.482038]
     view-azimuth: 339.3883
     view-elevation: -47.199768
     camera-type: 0

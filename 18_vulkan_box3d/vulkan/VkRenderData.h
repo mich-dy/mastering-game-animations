@@ -516,6 +516,8 @@ struct VkRenderData {
   VkPipelineLayout rdSSAOBlurPipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdLightSpherePipelineLayout = VK_NULL_HANDLE;
   VkPipelineLayout rdLightSphereShadowPipelineLayout = VK_NULL_HANDLE;
+  VkPipelineLayout rdPostCompositeLightObjectPipelineLayout = VK_NULL_HANDLE;
+  VkPipelineLayout rdPostCompositeLightObjectSelectionPipelineLayout = VK_NULL_HANDLE;
 
   VkPipeline rdAssimpPipeline = VK_NULL_HANDLE;
   VkPipeline rdAssimpSkinningPipeline = VK_NULL_HANDLE;
@@ -583,6 +585,7 @@ struct VkRenderData {
   VkDescriptorSetLayout rdSSAOBlurDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdLightSphereDescriptorLayout = VK_NULL_HANDLE;
   VkDescriptorSetLayout rdLightSphereShadowDescriptorLayout = VK_NULL_HANDLE;
+  VkDescriptorSetLayout rdPostCompositeLightObjectDescriptorLayout = VK_NULL_HANDLE;
 
   std::vector<VkDescriptorSet> rdAssimpDescriptorSets{};
   std::vector<VkDescriptorSet> rdAssimpSkinningDescriptorSets{};
@@ -607,6 +610,7 @@ struct VkRenderData {
   std::vector<VkDescriptorSet> rdDynLightDebugSphereDescriptorSets{};
   std::vector<VkDescriptorSet> rdLightSphereDescriptorSets{};
   std::vector<VkDescriptorSet> rdLightSphereShadowsDescriptorSets{};
+  std::vector<VkDescriptorSet> rdPostCompositeLightObjectDescriptorSets{};
 
   VkDescriptorPool rdDescriptorPool = VK_NULL_HANDLE;
   VkDescriptorPool rdImguiDescriptorPool = VK_NULL_HANDLE;

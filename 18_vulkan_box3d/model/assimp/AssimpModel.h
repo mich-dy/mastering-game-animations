@@ -29,6 +29,7 @@ class AssimpModel {
 
     void draw(VkRenderData &renderData, bool selectionModeActive);
     void drawInstanced(VkRenderData &renderData, uint32_t instanceCount, bool selectionModeActive);
+    void drawInstancedWithOffset(VkRenderData &renderData, uint32_t instanceCount, uint32_t firstInstance, bool selectionModeActive);
     void drawInstancedNoMorphAnims(VkRenderData &renderData, uint32_t instanceCount, bool selectionModeActive);
     void drawInstancedMorphAnims(VkRenderData &renderData, uint32_t instanceCount, bool selectionModeActive);
 
@@ -92,7 +93,7 @@ class AssimpModel {
 private:
     void processNode(VkRenderData &renderData, std::shared_ptr<AssimpNode> node, aiNode* aNode, const aiScene* scene, std::string assetDirectory);
     void createNodeList(std::shared_ptr<AssimpNode> node, std::shared_ptr<AssimpNode> newNode, std::vector<std::shared_ptr<AssimpNode>> &list);
-    void drawInstanced(VkRenderData &renderData, int bufferIndex, uint32_t instanceCount, bool selectionModeActive, bool drawMorphMeshes);
+    void drawInstanced(VkRenderData &renderData, int bufferIndex, uint32_t instanceCount, bool selectionModeActive, bool drawMorphMeshes, uint32_t firstInstance = 0);
 
     bool createDescriptorSet(VkRenderData &renderData);
 

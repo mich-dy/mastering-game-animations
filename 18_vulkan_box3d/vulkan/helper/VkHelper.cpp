@@ -14,6 +14,7 @@
 #include <FramebufferAttachment.h>
 #include <PipelineLayout.h>
 #include <ModelLevelPipeline.h>
+#include <PostCompositeObjectPipeline.h>
 #include <ComputePipeline.h>
 #include <LinePipeline.h>
 #include <WireTrianglePipeline.h>
@@ -519,19 +520,19 @@ bool VkHelper::createDescriptorLayouts(VkRenderData& renderData) {
     renderDataUboBind.pImmutableSamplers = nullptr;
     renderDataUboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    VkDescriptorSetLayoutBinding assimpSsboBind{};
-    assimpSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    assimpSsboBind.binding = 1;
-    assimpSsboBind.descriptorCount = 1;
-    assimpSsboBind.pImmutableSamplers = nullptr;
-    assimpSsboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    VkDescriptorSetLayoutBinding worldPosSsboBind{};
+    worldPosSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    worldPosSsboBind.binding = 1;
+    worldPosSsboBind.descriptorCount = 1;
+    worldPosSsboBind.pImmutableSamplers = nullptr;
+    worldPosSsboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    VkDescriptorSetLayoutBinding assimpSsboBind2{};
-    assimpSsboBind2.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    assimpSsboBind2.binding = 2;
-    assimpSsboBind2.descriptorCount = 1;
-    assimpSsboBind2.pImmutableSamplers = nullptr;
-    assimpSsboBind2.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    VkDescriptorSetLayoutBinding instanceSelectedSsboBind{};
+    instanceSelectedSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    instanceSelectedSsboBind.binding = 2;
+    instanceSelectedSsboBind.descriptorCount = 1;
+    instanceSelectedSsboBind.pImmutableSamplers = nullptr;
+    instanceSelectedSsboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     VkDescriptorSetLayoutBinding shadowMapCascadeDataBind{};
     shadowMapCascadeDataBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -542,8 +543,8 @@ bool VkHelper::createDescriptorLayouts(VkRenderData& renderData) {
 
     std::vector<VkDescriptorSetLayoutBinding> assimpBindings = {
       renderDataUboBind,
-      assimpSsboBind,
-      assimpSsboBind2,
+      worldPosSsboBind,
+      instanceSelectedSsboBind,
       shadowMapCascadeDataBind
     };
 
@@ -1475,6 +1476,56 @@ bool VkHelper::createDescriptorLayouts(VkRenderData& renderData) {
      }
   }
 
+  {
+    // post composite light bulb shader
+    VkDescriptorSetLayoutBinding renderDataUboBind{};
+    renderDataUboBind.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    renderDataUboBind.binding = 0;
+    renderDataUboBind.descriptorCount = 1;
+    renderDataUboBind.pImmutableSamplers = nullptr;
+    renderDataUboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutBinding worldPosSsboBind{};
+    worldPosSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    worldPosSsboBind.binding = 1;
+    worldPosSsboBind.descriptorCount = 1;
+    worldPosSsboBind.pImmutableSamplers = nullptr;
+    worldPosSsboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayoutBinding instanceSelectedSsboBind{};
+    instanceSelectedSsboBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    instanceSelectedSsboBind.binding = 2;
+    instanceSelectedSsboBind.descriptorCount = 1;
+    instanceSelectedSsboBind.pImmutableSamplers = nullptr;
+    instanceSelectedSsboBind.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayoutBinding dynLightPosDataBind{};
+    dynLightPosDataBind.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    dynLightPosDataBind.binding = 3;
+    dynLightPosDataBind.descriptorCount = 1;
+    dynLightPosDataBind.pImmutableSamplers = nullptr;
+    dynLightPosDataBind.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::vector<VkDescriptorSetLayoutBinding> assimpBindings = {
+      renderDataUboBind,
+      worldPosSsboBind,
+      instanceSelectedSsboBind,
+      dynLightPosDataBind
+    };
+
+    VkDescriptorSetLayoutCreateInfo postComposeLightsCreateInfo{};
+    postComposeLightsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    postComposeLightsCreateInfo.bindingCount = static_cast<uint32_t>(assimpBindings.size());
+    postComposeLightsCreateInfo.pBindings = assimpBindings.data();
+
+    result = vkCreateDescriptorSetLayout(renderData.rdVkbDevice.device, &postComposeLightsCreateInfo,
+      nullptr, &renderData.rdPostCompositeLightObjectDescriptorLayout);
+    if (result != VK_SUCCESS) {
+      Logger::log(1, "%s error: could not create post compose light buffer descriptor set layout (error: %i)\n", __FUNCTION__, result);
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -1914,6 +1965,26 @@ bool VkHelper::createDescriptorSets(VkRenderData& renderData) {
 
     if (result != VK_SUCCESS) {
       Logger::log(1, "%s error: could not allocate light spheres shadow descriptor set (error: %i)\n", __FUNCTION__, result);
+      return false;
+    }
+  }
+
+  {
+    // post composite light bulb shader
+    renderData.rdPostCompositeLightObjectDescriptorSets.resize(renderData.rdNumFramesInFlight);
+    // we need a matching number of layouts xD
+    std::vector<VkDescriptorSetLayout> postComposeLightObjectLayouts(renderData.rdNumFramesInFlight, renderData.rdPostCompositeLightObjectDescriptorLayout);
+
+    VkDescriptorSetAllocateInfo descriptorAllocateInfo{};
+    descriptorAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptorAllocateInfo.descriptorPool = renderData.rdDescriptorPool;
+    descriptorAllocateInfo.descriptorSetCount = static_cast<uint32_t>(renderData.rdNumFramesInFlight);
+    descriptorAllocateInfo.pSetLayouts = postComposeLightObjectLayouts.data();
+
+    VkResult result = vkAllocateDescriptorSets(renderData.rdVkbDevice.device, &descriptorAllocateInfo,
+      renderData.rdPostCompositeLightObjectDescriptorSets.data());
+    if (result != VK_SUCCESS) {
+      Logger::log(1, "%s error: could not allocate post compose light descriptor set (error: %i)\n", __FUNCTION__, result);
       return false;
     }
   }
@@ -2454,6 +2525,72 @@ void VkHelper::updateDescriptorSets(VkRenderData& renderData) {
     vkUpdateDescriptorSets(renderData.rdVkbDevice.device, static_cast<uint32_t>(writeDescriptorSets.size()),
       writeDescriptorSets.data(), 0, nullptr);
   }
+
+  for (int i = 0; i < renderData.rdNumFramesInFlight; ++i) {
+    // post composite light bulb shader
+    VkDescriptorBufferInfo matrixInfo{};
+    matrixInfo.buffer = renderData.rdRenderUploadDataUBO.buffer;
+    matrixInfo.offset = 0;
+    matrixInfo.range = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo worldPosInfo{};
+    worldPosInfo.buffer = renderData.rdShaderModelRootMatrixBuffers.at(i).buffer;
+    worldPosInfo.offset = 0;
+    worldPosInfo.range = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo selectionInfo{};
+    selectionInfo.buffer = renderData.rdSelectedInstanceBuffers.at(i).buffer;
+    selectionInfo.offset = 0;
+    selectionInfo.range = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo lightDataInfo{};
+    lightDataInfo.buffer = renderData.rdDynamicLightBuffers.at(i).buffer;
+    lightDataInfo.offset = 0;
+    lightDataInfo.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet matrixWriteDescriptorSet{};
+    matrixWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    matrixWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    matrixWriteDescriptorSet.dstSet = renderData.rdPostCompositeLightObjectDescriptorSets.at(i);
+    matrixWriteDescriptorSet.dstBinding = 0;
+    matrixWriteDescriptorSet.descriptorCount = 1;
+    matrixWriteDescriptorSet.pBufferInfo = &matrixInfo;
+
+    VkWriteDescriptorSet posWriteDescriptorSet{};
+    posWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    posWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    posWriteDescriptorSet.dstSet = renderData.rdPostCompositeLightObjectDescriptorSets.at(i);
+    posWriteDescriptorSet.dstBinding = 1;
+    posWriteDescriptorSet.descriptorCount = 1;
+    posWriteDescriptorSet.pBufferInfo = &worldPosInfo;
+
+    VkWriteDescriptorSet selectionWriteDescriptorSet{};
+    selectionWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    selectionWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    selectionWriteDescriptorSet.dstSet = renderData.rdPostCompositeLightObjectDescriptorSets.at(i);
+    selectionWriteDescriptorSet.dstBinding = 2;
+    selectionWriteDescriptorSet.descriptorCount = 1;
+    selectionWriteDescriptorSet.pBufferInfo = &selectionInfo;
+
+    VkWriteDescriptorSet lightDataDescriptorSet{};
+    lightDataDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    lightDataDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    lightDataDescriptorSet.dstSet = renderData.rdPostCompositeLightObjectDescriptorSets.at(i);
+    lightDataDescriptorSet.dstBinding = 3;
+    lightDataDescriptorSet.descriptorCount = 1;
+    lightDataDescriptorSet.pBufferInfo = &lightDataInfo;
+
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+      matrixWriteDescriptorSet,
+      posWriteDescriptorSet,
+      selectionWriteDescriptorSet,
+      lightDataDescriptorSet
+    };
+
+    vkUpdateDescriptorSets(renderData.rdVkbDevice.device, static_cast<uint32_t>(writeDescriptorSets.size()),
+       writeDescriptorSets.data(), 0, nullptr);
+  }
+
 }
 
 void VkHelper::updateComputeDescriptorSets(VkRenderData& renderData) {
@@ -3313,6 +3450,29 @@ bool VkHelper::createPipelineLayouts(VkRenderData& renderData) {
     return false;
   }
 
+  // post compose light objects
+  std::vector<VkDescriptorSetLayout> postComposeLightObjectLayouts = {
+    renderData.rdAssimpTextureDescriptorLayout,
+    renderData.rdPostCompositeLightObjectDescriptorLayout
+  };
+
+  if (!PipelineLayout::init(renderData, renderData.rdPostCompositeLightObjectPipelineLayout, postComposeLightObjectLayouts, pushConstants)) {
+    Logger::log(1, "%s error: could not init post compose light object pipeline layout\n", __FUNCTION__);
+    return false;
+  }
+
+  // post compose light objects, selection
+  std::vector<VkDescriptorSetLayout> postComposeLightObjectSelectionLayouts = {
+    renderData.rdAssimpTextureDescriptorLayout,
+    renderData.rdPostCompositeLightObjectDescriptorLayout,
+    renderData.rdAssimpSelectionDescriptorLayout
+  };
+
+  if (!PipelineLayout::init(renderData, renderData.rdPostCompositeLightObjectSelectionPipelineLayout, postComposeLightObjectSelectionLayouts, pushConstants)) {
+    Logger::log(1, "%s error: could not init post compose light object selection pipeline layout\n", __FUNCTION__);
+    return false;
+  }
+
   return true;
 }
 
@@ -3526,7 +3686,7 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
 
   vertexShaderFile = "spv/assimp_post_composite.vert.spv";
   fragmentShaderFile = "spv/assimp_post_composite.frag.spv";
-  if (!ModelLevelPipeline::init(renderData, compositeAttachmentFormats, renderData.rdAssimpPipelineLayout,
+  if (!PostCompositeObjectPipeline::init(renderData, compositeAttachmentFormats, renderData.rdPostCompositeLightObjectPipelineLayout,
     renderData.rdAssimpPostCompositePipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp post composite shader pipeline\n", __FUNCTION__);
     return false;
@@ -3534,7 +3694,7 @@ bool VkHelper::createPipelines(VkRenderData& renderData) {
 
   vertexShaderFile = "spv/assimp_post_composite_selection.vert.spv";
   fragmentShaderFile = "spv/assimp_post_composite_selection.frag.spv";
-  if (!ModelLevelPipeline::init(renderData, compositeAttachmentFormats, renderData.rdAssimpSelectionPipelineLayout,
+  if (!PostCompositeObjectPipeline::init(renderData, compositeAttachmentFormats, renderData.rdPostCompositeLightObjectSelectionPipelineLayout,
     renderData.rdAssimpPostCompositeSelectionPipeline, vertexShaderFile, fragmentShaderFile)) {
     Logger::log(1, "%s error: could not init Assimp post composite Selection shader pipeline\n", __FUNCTION__);
     return false;
@@ -4596,8 +4756,8 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   ModelLevelPipeline::cleanup(renderData, renderData.rdAssimpSkinningMorphPipeline);
   ModelLevelPipeline::cleanup(renderData, renderData.rdAssimpSkinningMorphSelectionPipeline);
   ModelLevelPipeline::cleanup(renderData, renderData.rdAssimpLevelPipeline);
-  ModelLevelPipeline::cleanup(renderData, renderData.rdAssimpPostCompositePipeline);
-  ModelLevelPipeline::cleanup(renderData, renderData.rdAssimpPostCompositeSelectionPipeline);
+  PostCompositeObjectPipeline::cleanup(renderData, renderData.rdAssimpPostCompositePipeline);
+  PostCompositeObjectPipeline::cleanup(renderData, renderData.rdAssimpPostCompositeSelectionPipeline);
   LinePipeline::cleanup(renderData, renderData.rdLinePipeline);
   WireTrianglePipeline::cleanup(renderData, renderData.rdWireTrianglePipeline);
   LinePipeline::cleanup(renderData, renderData.rdSpherePipeline);
@@ -4637,6 +4797,8 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   PipelineLayout::cleanup(renderData, renderData.rdSSAOBlurPipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdLightSpherePipelineLayout);
   PipelineLayout::cleanup(renderData, renderData.rdLightSphereShadowPipelineLayout);
+  PipelineLayout::cleanup(renderData, renderData.rdPostCompositeLightObjectPipelineLayout);
+  PipelineLayout::cleanup(renderData, renderData.rdPostCompositeLightObjectSelectionPipelineLayout);
 
   UniformBuffer::cleanup(renderData, renderData.rdRenderUploadDataUBO);
   UniformBuffer::cleanup(renderData, renderData.rdSSAOKernelSamplesUBO);
@@ -4718,6 +4880,8 @@ void VkHelper::cleanup(VkRenderData& renderData) {
     renderData.rdAssimpComputeSphereMatrixMultDescriptorSets.data());
   vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, renderData.rdNumFramesInFlight,
     renderData.rdAssimpComputeIKDescriptorSets.data());
+  vkFreeDescriptorSets(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, renderData.rdNumFramesInFlight,
+    renderData.rdPostCompositeLightObjectDescriptorSets.data());
 
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdAssimpSkinningDescriptorLayout, nullptr);
@@ -4742,6 +4906,7 @@ void VkHelper::cleanup(VkRenderData& renderData) {
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdSSAOBlurDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdLightSphereDescriptorLayout, nullptr);
   vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdLightSphereShadowDescriptorLayout, nullptr);
+  vkDestroyDescriptorSetLayout(renderData.rdVkbDevice.device, renderData.rdPostCompositeLightObjectDescriptorLayout, nullptr);
 
   vkDestroyDescriptorPool(renderData.rdVkbDevice.device, renderData.rdDescriptorPool, nullptr);
 

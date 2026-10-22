@@ -7,6 +7,7 @@ layout (location = 4) in vec4 aBoneWeight; // ignored
 
 layout (location = 0) out vec3 color;
 layout (location = 1) out vec2 texCoord;
+layout (location = 2) out flat uint outInstance;
 
 layout (push_constant) uniform Constants {
   uint modelStride;
@@ -19,7 +20,7 @@ layout (std140, set = 1, binding = 0) uniform Matrices {
   mat4 projectionMat;
 };
 
-layout (std430, set = 1, binding = 1) readonly buffer WorldPosMatrices {
+layout (std430, set = 1, binding = 1) readonly restrict buffer WorldPosMatrices {
   mat4 worldPosMat[];
 };
 
@@ -34,4 +35,6 @@ void main() {
 
   color = aColor.rgb * selected[gl_InstanceIndex + worldPosOffset].x;
   texCoord = vec2(aPos.w, aNormal.w);
+
+  outInstance = gl_InstanceIndex;
 }
